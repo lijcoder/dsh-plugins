@@ -1,0 +1,29 @@
+# dsh-notify-wecom 的 bundle 层：插入「任务完成 / 需要授权 → 企微通知」插件 row。
+#
+# 默认从环境变量读凭证；三个变量只要缺一个就把这行停用（disabled），
+# 这样 bundle 装好但还没配好时不会让 profile 启动失败：
+#
+#   export WECOM_NOTIFY_BOT_ID=...
+#   export WECOM_NOTIFY_BOT_SECRET=...
+#   export WECOM_NOTIFY_TARGET=chatid或userid
+#
+# 想直接写死凭证 / 改默认值，在自己 profile 的 cordis.patch.yml 里按 id 覆盖。
+# 注意两点：
+#   1. 补丁整块替换 config，覆盖时要写全需要的键；
+#   2. 本层的 disabled 会继续生效（补丁不写 disabled 就沿用），
+#      所以不靠环境变量启用时必须显式写 disabled: false。
+#
+#   - id: dsh-notify-wecom
+#     disabled: false
+#     config:
+#       botId: 'xxx'
+#       secret: 'yyy'
+#       target: 'chatid或userid'
+- insert:
+    - id: dsh-notify-wecom
+      name: 'dsh-notify-wecom'
+      disabled: !!js "!(process.env.WECOM_NOTIFY_BOT_ID && process.env.WECOM_NOTIFY_BOT_SECRET && process.env.WECOM_NOTIFY_TARGET)"
+      config:
+        botId: !!js process.env.WECOM_NOTIFY_BOT_ID
+        secret: !!js process.env.WECOM_NOTIFY_BOT_SECRET
+        target: !!js process.env.WECOM_NOTIFY_TARGET
