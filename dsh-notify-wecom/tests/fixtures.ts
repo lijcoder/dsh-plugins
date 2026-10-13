@@ -85,28 +85,57 @@ export class FakeLogger {
   }
 }
 
-/** 记录发送内容的假企微通道。 */
+/** 假企微通道：记录主动发送，并支持模拟收到消息后收集回复。 */
 export class FakeWecom {
   readonly sent: Array<{ chatId: string; content: string }> = []
   failWith: Error | undefined
+  private readonly handlers = new Set<(message: any) => void>()
 
   async sendMarkdown(chatId: string, content: string): Promise<void> {
     if (this.failWith !== undefined) throw this.failWith
     this.sent.push({ chatId, content })
   }
+
+  onMessage(handler: (message: any) => void): () => void {
+    this.handlers.add(handler)
+    return () => this.handlers.delete(handler)
+  }
+
+  /** 模拟收到一条文本消息，返回命令处理完后给出的回复。 */
+  async receive(text: string, from = 'tester'): Promise<string[]> {
+    const replies: string[] = []
+    const message = { userId: from, chatId: 'chat-1', text, reply: async (markdown: string) => { replies.push(markdown) } }
+    for (const handler of this.handlers) handler(message)
+    await new Promise((resolve) => setImmediate(resolve))
+    return replies
+  }
 }
 
-/**
- * 最小的 plugin Context 替身：捕获监听器，并挂上假的 logger、ctx.wecom 与标题投影。
- * `projectedTitle` 为 `undefined` 时，标题走「首条人类消息」兜底。
- */
-export function fakeContext(wecom = new FakeWecom(), projectedTitle?: string | null) {
+/** 一个活着的顶层 agent 替身（`/list` 用）。 */
+export interface FakeAgent {
+  readonly session: Session
+  readonly status: 'running' | 'idle'
+}
+
+export interface FakeContextOptions {
+  readonly wecom?: FakeWecom
+  /** 标题投影；返回 `undefined`/`null` 时标题走「首条人类消息」兜底。 */
+  readonly titleOf?: (session: Session) => string | null | undefined
+  /** 活着的顶层 agent，`ctx.agents.roots()` 返回它们。 */
+  readonly agents?: readonly FakeAgent[]
+}
+
+/** 最小的 plugin Context 替身：捕获监听器，并挂上假的 logger、ctx.wecom、标题投影与 agent 注册表。 */
+export function fakeContext(options: FakeContextOptions = {}) {
+  const wecom = options.wecom ?? new FakeWecom()
   const handlers = new Map<string, (...args: any[]) => unknown>()
   const logger = new FakeLogger()
+  const agents = options.agents ?? []
   const ctx = {
     logger,
     wecom: wecom as unknown as WecomConnection,
-    sessionProjections: { stateOf: () => projectedTitle },
+    sessionProjections: { stateOf: (session: Session) => options.titleOf?.(session) },
+    agents: { roots: () => [...agents] },
     on: (name: string, handler: (...args: any[]) => unknown): void => {
       handlers.set(name, handler)
     },
@@ -132,6 +161,7 @@ export function testConfig(overrides: Partial<Config> = {}): Config {
     heading: 'DSH 任务完成',
     approvalHeading: 'DSH 需要授权',
     includeApprovals: true,
+    includeCommands: true,
     includeSubagents: false,
     onlyCompleted: false,
     includeQuestion: true,

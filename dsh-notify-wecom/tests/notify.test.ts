@@ -100,7 +100,7 @@ describe('CompletionCollector', () => {
     collector.note(session.id, turnEndEvent(2, 'error', 4_000))
     const second = collector.take(session)
     assert.equal(second?.turn, 2)
-    assert.equal(second?.outcome.label, '执行失败')
+    assert.equal(second?.outcome.label, '失败')
     assert.equal(second?.output, '第二轮输出')
   })
 
@@ -139,7 +139,7 @@ function completion(overrides: Partial<Parameters<typeof renderNotification>[0]>
     sessionId: 'sess-abc',
     title: '修复登录超时',
     cwd: '/work/demo',
-    outcome: { kind: 'completed', label: '成功完成', emoji: '✅' },
+    outcome: { kind: 'completed', label: '成功', emoji: '✅' },
     turn: 2,
     startedAt: 1_000,
     endedAt: 134_000,
@@ -154,7 +154,7 @@ describe('renderNotification', () => {
     const content = renderNotification(completion(), config)
     assert.match(content, /^## ✅ DSH 任务完成$/m)
     assert.match(content, /> \*\*会话\*\*：修复登录超时/)
-    assert.match(content, /^> \*\*状态\*\*：成功完成$/m)
+    assert.match(content, /^> \*\*状态\*\*：成功$/m)
     assert.match(content, /> \*\*目录\*\*：`\/work\/demo`/)
     assert.match(content, /> \*\*回合\*\*：#2 · 耗时 2m13s · \d\d-\d\d \d\d:\d\d/)
     assert.match(content, /^> \*\*Session\*\*：`sess-abc`$/m)
@@ -180,11 +180,11 @@ describe('renderNotification', () => {
 
   test('失败状态照常渲染；缺目录时不渲染目录行，标题缺失时给兜底文案', () => {
     const content = renderNotification(completion({
-      outcome: { kind: 'error', label: '执行失败', emoji: '❌' },
+      outcome: { kind: 'error', label: '失败', emoji: '❌' },
       cwd: undefined,
       title: undefined,
     }), config)
-    assert.match(content, /\*\*状态\*\*：执行失败/)
+    assert.match(content, /\*\*状态\*\*：失败/)
     assert.match(content, /（未命名）/)
     assert.doesNotMatch(content, /\*\*目录\*\*/)
   })

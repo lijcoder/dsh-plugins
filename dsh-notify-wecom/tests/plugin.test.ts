@@ -17,7 +17,7 @@ import {
 const flush = (): Promise<void> => new Promise((resolve) => setImmediate(resolve))
 
 function build(config = testConfig(), projectedTitle?: string | null) {
-  const fake = fakeContext(new FakeWecom(), projectedTitle)
+  const fake = fakeContext({ wecom: new FakeWecom(), titleOf: () => projectedTitle })
   registerNotify(fake.ctx, config)
   return fake
 }
@@ -68,7 +68,7 @@ describe('registerNotify', () => {
     const content = wecom.sent[0]?.content ?? ''
     assert.match(content, /\*\*会话\*\*：帮我把登录超时改大一点/)
     assert.match(content, /\/work\/demo/)
-    assert.match(content, /成功完成/)
+    assert.match(content, /\*\*状态\*\*：成功/)
     assert.match(content, /\*\*问题\*\*\n帮我把登录超时改大一点/)
     assert.match(content, /\*\*回复\*\*\n好了/)
   })

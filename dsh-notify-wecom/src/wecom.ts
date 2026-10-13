@@ -1,5 +1,5 @@
-import { WSClient } from '@wecom/aibot-node-sdk'
-import type { Logger, WSClientOptions } from '@wecom/aibot-node-sdk'
+import { WSClient, generateReqId } from '@wecom/aibot-node-sdk'
+import type { Logger, WSClientOptions, WsFrameHeaders } from '@wecom/aibot-node-sdk'
 import type { Context } from '@deepseek-ai/cordis'
 
 declare module '@deepseek-ai/cordis' {
@@ -36,18 +36,34 @@ export interface WecomOptions {
 }
 
 /**
+ * 收到的一条企微文本消息，已归一化成业务视图。
+ */
+export interface WecomInboundMessage {
+  /** 发送者 userid。 */
+  readonly userId: string
+  /** 群聊的 chatid；单聊没有。 */
+  readonly chatId?: string
+  /** 文本正文（群聊里可能带 @提及 前缀）。 */
+  readonly text: string
+  /** 回复这条消息（走它自己的 req_id，不需要另配目标）。 */
+  reply(markdown: string): Promise<void>
+}
+
+/** 订阅收到的消息；返回注销函数。 */
+export type WecomMessageHandler = (message: WecomInboundMessage) => void
+
+/**
  * 企业微信智能机器人长连接。
  *
- * 现在只有「发」：认证后往指定会话推 markdown。
- *
- * 以后要「收」——用企微消息驱动 DSH——在 {@link start} 里加一行
- * `client.on('message.text', ...)`，把消息交给自己的业务处理即可：
- * 连接、认证、重连、超时、发送回执都由本类兜住，业务侧不碰 SDK。
+ * 「发」：认证后往指定会话推 markdown（{@link sendMarkdown}）。
+ * 「收」：`client.on('message.text')` 转成 {@link WecomInboundMessage} 交给订阅者
+ * （{@link onMessage}）；连接、认证、重连、超时、回执都由本类兜住，业务侧不碰 SDK。
  */
 export class WecomConnection {
   private client: WSClient | undefined
   private readonly authenticated = deferred()
   private readonly inflight = new Set<Promise<unknown>>()
+  private readonly messageHandlers = new Set<WecomMessageHandler>()
 
   constructor(
     private readonly options: WecomOptions,
@@ -58,7 +74,39 @@ export class WecomConnection {
     const client = new WSClient(this.sdkOptions())
     this.client = client
     client.on('authenticated', () => this.authenticated.resolve())
+    client.on('message.text', (frame) => {
+      // 事件只在文本消息上触发，body 必定存在。
+      const body = frame.body!
+      const message: WecomInboundMessage = {
+        userId: body.from.userid,
+        chatId: body.chatid,
+        text: body.text.content,
+        reply: (markdown: string) => this.replyInThread(frame, markdown),
+      }
+      for (const handler of this.messageHandlers) handler(message)
+    })
     client.connect()
+  }
+
+  /** 订阅收到的文本消息；返回注销函数。 */
+  onMessage(handler: WecomMessageHandler): () => void {
+    this.messageHandlers.add(handler)
+    return () => this.messageHandlers.delete(handler)
+  }
+
+  /** 回复收到的某条消息（单帧流式回复，企微侧渲染成一条完整消息）。 */
+  private async replyInThread(frame: WsFrameHeaders, markdown: string): Promise<void> {
+    const client = this.client
+    if (client === undefined) throw new Error('企微连接尚未启动')
+    const pending = client.replyStream(frame, generateReqId('stream'), markdown, true)
+    this.inflight.add(pending)
+    try {
+      await pending
+    } catch (error) {
+      throw sendFailure(error)
+    } finally {
+      this.inflight.delete(pending)
+    }
   }
 
   /** 发一条 markdown。未认证时先等认证，超时抛错。 */
