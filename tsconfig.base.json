@@ -1,4 +1,7 @@
 {
+  // 树外插件仓库的共享编译选项。
+  // 刻意不写 paths：本仓库消费的是 npm 上已发布的 @deepseek-ai/* 包，
+  // 不像 dsh 主仓库那样把 workspace 源码映射进编译（那会让插件焊死在某个 checkout 上）。
   "compilerOptions": {
     "target": "ES2023",
     "lib": ["ES2023"],
@@ -15,8 +18,7 @@
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
     "declaration": true,
-    "sourceMap": true,
-    "noEmit": true
-  },
-  "include": ["src/**/*.ts", "tests/**/*.ts"]
+    "declarationMap": true,
+    "sourceMap": true
+  }
 }

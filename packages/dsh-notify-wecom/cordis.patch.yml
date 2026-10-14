@@ -21,7 +21,7 @@
 #       target: 'chatid或userid'
 - insert:
     - id: dsh-notify-wecom
-      name: 'dsh-notify-wecom'
+      name: '@lijcoder/dsh-notify-wecom'
       disabled: !!js "!(process.env.WECOM_NOTIFY_BOT_ID && process.env.WECOM_NOTIFY_BOT_SECRET && process.env.WECOM_NOTIFY_TARGET)"
       config:
         botId: !!js process.env.WECOM_NOTIFY_BOT_ID

@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 import { WecomCommandRouter, parseCommand, registerCommands } from '../src/commands.js'
-import { fakeContext, testConfig, topLevel, session, FakeWecom } from './fixtures.js'
+import { session, topLevel } from '@lijcoder/dsh-plugin-testkit'
+import { fakeContext, FakeWecom, testConfig } from './fakes.js'
 
 describe('parseCommand', () => {
   test('识别斜杠命令与参数', () => {

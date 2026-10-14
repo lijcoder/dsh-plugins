@@ -10,8 +10,8 @@ import {
   turnEndEvent,
   turnStartEvent,
   userMessageEvent,
-  testConfig,
-} from './fixtures.js'
+} from '@lijcoder/dsh-plugin-testkit'
+import { testConfig } from './fakes.js'
 
 const config = testConfig()
 

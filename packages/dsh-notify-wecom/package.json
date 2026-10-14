@@ -1,7 +1,7 @@
 {
-  "name": "dsh-notify-wecom",
+  "name": "@lijcoder/dsh-notify-wecom",
   "version": "0.1.0",
-  "description": "DeepSeek Harness bundle: push a WeCom (企业微信) markdown notification over the aibot WebSocket channel when a top-level session goes idle",
+  "description": "DeepSeek Harness bundle：顶层会话空闲或需要授权时，通过企业微信智能机器人长连接推送 markdown 通知",
   "license": "MIT",
   "type": "module",
   "main": "lib/index.js",
@@ -22,6 +22,9 @@
   "engines": {
     "node": ">=22"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
@@ -40,23 +43,26 @@
     "@deepseek-ai/cordis": "*",
     "@deepseek-ai/dsh-agent": "*",
     "@deepseek-ai/dsh-session": "*",
-    "@deepseek-ai/dsh-user-approval": "*",
-    "@deepseek-ai/schemastery": "*",
     "@deepseek-ai/dsh-session-projection": "*",
-    "@deepseek-ai/dsh-session-title": "*"
+    "@deepseek-ai/dsh-session-title": "*",
+    "@deepseek-ai/dsh-user-approval": "*",
+    "@deepseek-ai/schemastery": "*"
   },
   "devDependencies": {
-    "@deepseek-ai/cordis": "~4.0.5-alpha.1",
-    "@deepseek-ai/dsh-agent": "0.2.1-alpha.2",
-    "@deepseek-ai/dsh-llm": "0.2.1-alpha.2",
-    "@deepseek-ai/dsh-scope": "0.2.1-alpha.2",
-    "@deepseek-ai/dsh-session": "0.2.1-alpha.2",
-    "@deepseek-ai/dsh-session-projection": "0.2.1-alpha.2",
-    "@deepseek-ai/dsh-session-title": "0.2.1-alpha.2",
-    "@deepseek-ai/dsh-user-approval": "0.2.1-alpha.2",
-    "@deepseek-ai/schemastery": "^3.18.4",
+    "@deepseek-ai/cordis": "catalog:dsh",
+    "@deepseek-ai/dsh-agent": "catalog:dsh",
+    "@deepseek-ai/dsh-llm": "catalog:dsh",
+    "@deepseek-ai/dsh-scope": "catalog:dsh",
+    "@deepseek-ai/dsh-session": "catalog:dsh",
+    "@deepseek-ai/dsh-session-projection": "catalog:dsh",
+    "@deepseek-ai/dsh-session-title": "catalog:dsh",
+    "@deepseek-ai/dsh-user-approval": "catalog:dsh",
+    "@deepseek-ai/schemastery": "catalog:dsh",
+    "@lijcoder/dsh-plugin-testkit": "workspace:*",
     "@types/node": "^22.20.1",
+    "@types/ws": "^8.18.2",
     "tsx": "^4.23.15",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "ws": "^8.22.0"
   }
 }

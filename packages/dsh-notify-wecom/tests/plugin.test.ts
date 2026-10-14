@@ -3,16 +3,14 @@ import { describe, test } from 'node:test'
 import { registerNotify } from '../src/notify.js'
 import {
   assistantMessageEvent,
-  fakeContext,
-  FakeWecom,
   subagent,
-  testConfig,
   titleEvent,
   topLevel,
   turnEndEvent,
   turnStartEvent,
   userMessageEvent,
-} from './fixtures.js'
+} from '@lijcoder/dsh-plugin-testkit'
+import { fakeContext, FakeWecom, testConfig } from './fakes.js'
 
 const flush = (): Promise<void> => new Promise((resolve) => setImmediate(resolve))
 

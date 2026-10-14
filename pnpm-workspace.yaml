@@ -1,0 +1,25 @@
+packages:
+  - packages/*
+
+# 本仓库对标（并据此开发测试）的 harness 平台版本，单一事实来源。
+# 升级 harness 只改这个 catalog，各包一律写 `catalog:dsh`。
+#
+# 为什么不写进 peerDependencies：dsh 在 alpha，且 npm 上 `latest` 停在 rc 线，
+# 精确的 prerelease 范围会让另一条线上的用户直接装不上，而运行期其实并不校验
+# peer 范围（见 dsh docs/user/develop/basic/publish）。所以 peer 写 `*`，
+# 精确版本只留在 devDependencies，即这里的 catalog。
+catalogs:
+  dsh:
+    '@deepseek-ai/cordis': ~4.0.5-alpha.1
+    '@deepseek-ai/schemastery': ^3.18.4
+    '@deepseek-ai/dsh-agent': 0.2.1-alpha.2
+    '@deepseek-ai/dsh-llm': 0.2.1-alpha.2
+    '@deepseek-ai/dsh-scope': 0.2.1-alpha.2
+    '@deepseek-ai/dsh-session': 0.2.1-alpha.2
+    '@deepseek-ai/dsh-session-projection': 0.2.1-alpha.2
+    '@deepseek-ai/dsh-session-title': 0.2.1-alpha.2
+    '@deepseek-ai/dsh-user-approval': 0.2.1-alpha.2
+
+# tsx 依赖 esbuild；它的安装脚本只负责就位平台二进制，是我们明确依赖的构建工具。
+allowBuilds:
+  esbuild: true

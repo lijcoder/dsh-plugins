@@ -1,4 +1,4 @@
-# dsh-notify-wecom
+# @lijcoder/dsh-notify-wecom
 
 DeepSeek Harness 插件（bundle）：**通过企业微信智能机器人（aibot）长连接做两件事——任务完成/需要授权时推 markdown 通知，以及响应 `/list`、`/help` 这类 `/` 命令。**
 
@@ -118,25 +118,31 @@ agent/status=idle ──► collector.take()（同回合去重）──► rende
 
 ## 安装
 
-插件必须被 `dsh` 所在的 profile 加载。先构建，再装进 profile：
+插件必须被 `dsh` 所在的 profile 加载。先在本仓库构建，再装进 profile：
 
 ```sh
-cd /Users/lijie/work/ai/dsh-plugins/dsh-notify-wecom
-npm install
-npm run build                       # 产出 lib/，profile 的 main 指向 lib/index.js
+cd /Users/lijie/work/ai/dsh-plugins
+pnpm install
+pnpm build                          # 产出各包 lib/，profile 的 main 指向 lib/index.js
 
 # dsh 在 PATH 里时（安装版）
-dsh plugin --profile web add /Users/lijie/work/ai/dsh-plugins/dsh-notify-wecom
+dsh plugin --profile web add ./packages/dsh-notify-wecom
 
 # 从仓库源码跑时（在 deepseek-harness 仓库根目录）
-pnpm dsh plugin --profile web add /Users/lijie/work/ai/dsh-plugins/dsh-notify-wecom
+pnpm dsh plugin --profile web add /Users/lijie/work/ai/dsh-plugins/packages/dsh-notify-wecom
 ```
+
+发布到 npm 之后也可以按包名装：`dsh plugin --profile web add @lijcoder/dsh-notify-wecom`。
 
 确认 bundle 层生效：
 
 ```sh
 dsh --profile web --dump-config | grep -A 10 'dsh-notify-wecom'
 ```
+
+> ⚠️ 光在自己 profile 的 `cordis.patch.yml` 里手写一行 `- id: dsh-notify-wecom` 是**不够的**：
+> 启动器找不到对应的 bundle 会直接丢掉这行，只打一句 `patch: entry "dsh-notify-wecom" not found` 警告。
+> 必须走 `dsh plugin add`，让它同时写进 `dependencies` 与 `dsh.profile.bundles`。
 
 ## 配置
 
@@ -195,32 +201,46 @@ export WECOM_NOTIFY_TARGET=chatid或userid
 
 ## 验证
 
-```sh
-npm run typecheck                     # tsc --noEmit
-npm test                              # 47 个离线单测：采集器 / 渲染 / 两类触发 / 命令解析与路由
-```
-
-WeCom 链路用 `tmps/` 里的本地 Mock 企微长连接服务端做端到端验证（不需要真实凭证）：
+在本仓库根目录：
 
 ```sh
-cd /Users/lijie/work/ai/dsh-plugins/tmps
-npm run test:notify                   # 断言主动推送（aibot_send_msg）与命令被动回复（aibot_respond_msg）
+pnpm check                            # 全仓 typecheck + build + test
+pnpm --filter @lijcoder/dsh-notify-wecom test    # 只跑本插件
 ```
 
-「装进 profile 能挂载」这一层用一个隔离的 `DSH_HOME` 验证过（不碰你正在用的 `~/.dsh`）：
+54 个测试分三层：
+
+| 文件 | 覆盖 |
+| --- | --- |
+| [tests/notify.test.ts](tests/notify.test.ts) | 采集器、渲染、回合/状态判定（纯函数） |
+| [tests/commands.test.ts](tests/commands.test.ts) | 命令解析与路由（纯函数 + 假通道） |
+| [tests/plugin.test.ts](tests/plugin.test.ts) | 两类触发、去重、失败路径（处理器级，手搓 Context） |
+| [tests/e2e.test.ts](tests/e2e.test.ts) | **端到端**：本地 Mock 企微长连接服务端 + 真实 cordis Context |
+
+e2e 那层不需要真实凭证、不联外网，覆盖三件单测看不见的事：
+
+1. 连接层协议帧——主动推送发 `aibot_send_msg` + markdown，命令用收到的 `req_id` 被动回复；
+2. **整个插件挂到真实 cordis Context 上**跑通 `inject` → `apply` → `provideWecom` → 通知落地；
+3. `dispose()` 之后长连接确实关掉了，以及少一个 inject 服务时插件保持 PENDING 而不是带病激活。
+
+Mock 服务端见 [tests/mock-wecom.ts](tests/mock-wecom.ts)，实现了认证、消息/事件推送、回执、
+素材三步上传与加密下载接口。
+
+「装进 profile 能挂载」这一层用一个隔离的 `DSH_HOME` 验证（不碰你正在用的 `~/.dsh`）：
 
 ```sh
 cd /Users/lijie/work/ai/dsh-plugins
 export DSH_HOME="$PWD/.dsh-test"
-node <deepseek-harness>/apps/cli/lib/bin.js plugin --profile notify-test add ./dsh-notify-wecom
+node <deepseek-harness>/apps/cli/lib/bin.js plugin --profile notify-test add ./packages/dsh-notify-wecom
 # 看 bundle 层：--dump-config；看挂载：给一个非法配置应报 schema 校验错误
 ```
 
-空 `DSH_HOME` 下 `dsh` 没有模型凭证，所以这里只验证到「bundle 合成 + 插件挂载 + Config 校验」；真实跑一个任务看通知落地，请在你自己的 profile 里做。
+空 `DSH_HOME` 下 `dsh` 没有模型凭证，所以这里只验证到「bundle 合成 + 插件挂载 + Config 校验」；
+真实跑一个任务看通知落地，请在你自己的 profile 里做。
 
 ## 注意与限制
 
-- **同一个机器人的长连接只能有一个**：插件在 DSH 进程里常驻 WS 连接，别让 `tmps` 或另一个进程用同一个 botId 同时连（企微会把旧连接踢掉）。
+- **同一个机器人的长连接只能有一个**：插件在 DSH 进程里常驻 WS 连接，别让另一个进程（或另一个 profile）用同一个 botId 同时连——企微会把旧连接踢掉。e2e 里的 Mock 同样只保留最新一条连接，这是刻意的忠实模拟。
 - **markdown 是这条通道的子集**：实测支持 `##` 标题、`**加粗**`、`` `行内代码` ``、`>` 引用块；**不支持** `<font color>`（会原样打出）、表格、代码块。所以状态只用 emoji 表达，元信息放引用块，内容按 4096 字节硬截断。
 - **完成通知只发顶层会话**（可用 `includeSubagents` 打开）；**授权通知不受这个开关限制**——子代理卡在授权上同样在等你，所以照样发（用 `includeApprovals: false` 可整体关掉）。
 - **授权通知只是提醒**：不能在企微里批准，得回会话处理。要支持从企微批准，得先做「收消息」那条链路。
@@ -228,4 +248,4 @@ node <deepseek-harness>/apps/cli/lib/bin.js plugin --profile notify-test add ./d
 - **依赖的服务要 inject**：cordis 里读别的插件提供的服务（`ctx.agents`、`ctx.sessionProjections`）必须先声明 `inject`，否则直接抛 `cannot get property "…" without inject`。本插件声明了 `inject: ['agents', 'sessionProjections']`；`ctx.wecom` 是自己 provide 的，同 fiber 使用不需要 inject（注入自己会死等）。
 - **标题来自投影**：`session-title` 注册的 `title` 投影（由注册表按已提交事件驱动，含重启后恢复的历史），读不到才退化为该会话首条人类消息。插件 `inject: ['sessionProjections']`，profile 里没有这个服务时它会一直等待挂载。
 - **进程内无持久队列**：DSH 崩溃时正在发送的通知会丢，不做重试队列。
-- 改动代码后要 `npm run build` 并重启 profile（linked 包不会热更新 `lib/`）。
+- 改动代码后要 `pnpm build` 并重启 profile（linked 包不会热更新 `lib/`）。
