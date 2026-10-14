@@ -40,7 +40,7 @@ profile 组合包表达的是「一套配置」，本来就是这个粒度。
 | `notify` | `@lijcoder/dsh-notify` | 完成 / 授权通知（`channel` 钉成 `wecom`） |
 | `im-commands` | `@lijcoder/dsh-im-commands` | `/list`、`/help` |
 
-行序有语义：命令功能挂载时就要在通道上订阅消息，所以通道必须排在它前面。
+行序**不**决定激活顺序（loader 先 await import 模块再创建 fiber，且不等激活）；这里按「接缝 → 通道 → 功能」排只是读起来清楚——功能都从接缝取入站消息，不要求通道先就位。
 
 ## 配置
 

@@ -1,5 +1,5 @@
 import { Context, Service } from '@deepseek-ai/cordis'
-import type { ImChannel } from './types.js'
+import type { ImChannel, ImMessage } from './types.js'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -14,11 +14,18 @@ declare module '@deepseek-ai/cordis' {
  * 命名注册。区别是这里**允许注册多个通道**——企微做通知、飞书做别的，是真实需求，
  * 没必要等到那时再改设计。
  *
- * 通道实现方 `inject: ['im']` 后调用 {@link registerChannel}；消费方（通知、命令等功能）
- * 同样 `inject: ['im']` 后调用 {@link channel} 取用。
+ * 两个方向在这里汇合：
+ * - **出站**：`channel(name)` 取通道后 `send`；
+ * - **入站**：`onMessage(handler)` 订阅**所有**通道的消息，不必先知道哪个通道存在。
+ *
+ * 入站为什么要经过注册表：loader 是「先 `await import` 模块、再创建 fiber，且不等激活」，
+ * 所以**行序不决定激活顺序**。功能若在挂载时就去解析某个具体通道，早晚会撞上
+ * 「通道还没注册」的竞态（本仓库踩过：`/list` 直接让 profile 起不来）。
+ * 把入站收进接缝后，功能的挂载不再依赖任何通道的时机。
  */
 export class ImRegistry extends Service {
   private readonly channels = new Map<string, ImChannel>()
+  private readonly handlers = new Set<(message: ImMessage) => void>()
 
   constructor(ctx: Context) {
     super(ctx, 'im')
@@ -26,6 +33,10 @@ export class ImRegistry extends Service {
 
   /**
    * 注册一个通道，随当前 fiber 卸载而注销。
+   *
+   * 注册表会订阅该通道的入站消息，转发给 {@link onMessage} 的订阅者，
+   * 并按**注册名**填写 `message.channel`（通道自报的 channel 不作数——
+   * 两个来源早晚会对不上）。
    *
    * @param name - 通道名，消费方在配置里用这个名字指定通道（如 `wecom`）。
    * @param channel - 通道实现。
@@ -38,10 +49,32 @@ export class ImRegistry extends Service {
     }
     return this.ctx.effect(() => {
       this.channels.set(name, channel)
+      const off = channel.onMessage((message) => {
+        for (const handler of this.handlers) handler({ ...message, channel: name })
+      })
       return () => {
+        off()
         this.channels.delete(name)
       }
     }, 'im.registerChannel()')
+  }
+
+  /**
+   * 订阅所有通道的入站消息，随当前 fiber 卸载而注销。
+   *
+   * 挂载即可订阅，**不要求此刻已经有通道**——通道后到也能收到它的消息。
+   * 订阅者按 `message.channel` 自己判断要不要处理。
+   *
+   * @param handler - 收到消息时调用。
+   * @returns 取消订阅函数。
+   */
+  onMessage(handler: (message: ImMessage) => void): () => void {
+    return this.ctx.effect(() => {
+      this.handlers.add(handler)
+      return () => {
+        this.handlers.delete(handler)
+      }
+    }, 'im.onMessage()')
   }
 
   /**

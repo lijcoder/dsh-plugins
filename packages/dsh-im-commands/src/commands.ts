@@ -94,9 +94,10 @@ export class CommandRouter {
 /**
  * 挂上命令路由：现在有 `/list` 和 `/help`。
  *
- * 通道在挂载时**立即解析**（不像通知功能那样惰性取）：被动回复必须先在通道上订阅
- * `onMessage`，订阅不到就收不到任何命令。所以缺通道是启动期错误——报清楚，
- * 别让它变成一个"发了命令没反应"的哑巴。
+ * 入站从**接缝**订阅（`ctx.im.onMessage`），不直接解析某个通道——loader 是
+ * 「先 await import 模块、再创建 fiber，且不等激活」，所以**行序不决定激活顺序**。
+ * 在挂载时要求通道已就位会撞上竞态：本仓库踩过一次，`/list` 直接让 profile 起不来。
+ * 订阅接缝之后，命令功能挂载得比通道早也照样收得到消息。
  */
 export function registerCommands(ctx: Context, config: Config): void {
   const router = new CommandRouter((error, name) => {
@@ -114,17 +115,10 @@ export function registerCommands(ctx: Context, config: Config): void {
     run: () => router.helpDocument(),
   })
 
-  let channel
-  try {
-    channel = ctx.im.channel(config.channel)
-  } catch (error) {
-    throw new Error(
-      `命令功能需要先有可用的 IM 通道：${error instanceof Error ? error.message : String(error)}`
-      + '（确认通道 provider 的行排在功能行之前）',
-    )
-  }
-
-  channel.onMessage((message) => {
+  ctx.im.onMessage((message) => {
+    // 配了通道名就只收那个通道的；没配则全收——回复走 message.reply 原路返回，
+    // 不存在"发错地方"的问题，所以这里比出站宽松。
+    if (config.channel !== undefined && message.channel !== config.channel) return
     void router.handle(message).catch((error: unknown) => {
       ctx.logger.warn('命令处理失败：%s', error instanceof Error ? error.message : String(error))
     })

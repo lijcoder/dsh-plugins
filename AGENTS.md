@@ -72,8 +72,17 @@ profile 组合包表达的本来就是「一套配置」这个粒度。dsh 自�
 - **渲染归实现，内容归功能**。功能产出结构（`ImDocument`），排版与平台限制由实现处理。
   能力用声明表达（`capabilities.tables`），实现自己降级；不要写成 `if (platform === 'wecom')`。
 
-**行序有语义**：接缝 → 实现 → 功能。功能若在挂载时就要订阅（如命令功能必须先在通道上
-`onMessage`），实现包必须排在它前面，用户在 README 里的 add 顺序也要照此。
+**行序不决定激活顺序，所以入站一律走接缝。** loader 是「先 `await import` 模块、再创建
+fiber，而且不 await 激活」（`vendor/loader/src/config/entry.ts` 的 `_init()`），
+所以 patch 里的行序只决定谁先开始加载，**谁先 import 完谁先激活**。
+
+后果：**任何在 `apply` 里要求「另一个插件已经跑完了」的功能都会 flaky**。本仓库踩过一次——
+命令功能在挂载时解析 `ctx.im.channel('wecom')`，结果 `/list` 让整个 profile 起不来，
+报「已注册：（无）」。修法是把入站收进接缝（`ctx.im.onMessage`）：功能只依赖自己 inject 的
+接缝，而接缝一定在（它是 inject 依赖本身）。
+
+写新功能时记住这条：**只依赖自己 inject 的服务，别依赖别的插件的执行时机。**
+需要外部资源就订阅、或者惰性解析。
 
 ### 构建顺序
 

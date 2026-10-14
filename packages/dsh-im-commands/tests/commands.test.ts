@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 import type { Context } from '@deepseek-ai/cordis'
-import type { ImDocument, ImMessage } from '@lijcoder/dsh-im'
+import type { ImDocument, ImInbound } from '@lijcoder/dsh-im'
 import { ImRegistry } from '@lijcoder/dsh-im'
 import { createTestContext, fakeAgent, topLevel } from '@lijcoder/dsh-plugin-testkit'
 import * as CommandsPlugin from '../src/index.js'
@@ -9,15 +9,14 @@ import { CommandRouter, parseCommand } from '../src/commands.js'
 
 const flush = (): Promise<void> => new Promise((resolve) => setImmediate(resolve))
 
-/** 假通道：把自己收到消息的处理函数收下来，便于模拟「收到一条消息」。 */
+/** 假通道：把自己上报的处理函数收下来，便于模拟「收到一条消息」。 */
 function fakeChannel() {
-  const subscriptions = new Set<(message: ImMessage) => void>()
+  const subscriptions = new Set<(message: ImInbound) => void>()
   return {
     /** 模拟收到一条文本消息，返回被动回复的文档。 */
     async receive(text: string): Promise<ImDocument[]> {
       const replies: ImDocument[] = []
       const message = {
-        channel: 'test',
         conversation: { id: 'chat-1', kind: 'direct' as const },
         sender: { id: 'tester' },
         text,
@@ -32,7 +31,7 @@ function fakeChannel() {
     channel: {
       capabilities: { richText: true, tables: false, maxContentBytes: 4_096, proactive: true },
       async send() {},
-      onMessage(handler: (message: ImMessage) => void) {
+      onMessage(handler: (message: ImInbound) => void) {
         subscriptions.add(handler)
         return () => subscriptions.delete(handler)
       },
@@ -181,6 +180,57 @@ describe('registerCommands', () => {
     })
     const replies = await receive('/list')
     assert.equal(replies[0]?.table?.rows[0]?.[0], '（无工作目录）')
+    await h.dispose()
+  })
+
+  test('命令功能先挂载、通道后挂载也照样收得到消息', async () => {
+    // 这正是让 profile 起不来的那个竞态：loader 先 await import 模块再创建 fiber，
+    // 且不等激活，所以行序不决定激活顺序 —— 命令行完全可能先于通道行激活。
+    const h = createTestContext()
+    const fake = fakeChannel()
+    h.provide('agents', { roots: () => [fakeAgent(topLevel('s1', '/work/demo'), 'idle')] })
+    h.provide('sessionProjections', { stateOf: () => '标题' })
+
+    await h.mount(ImRegistry)
+    await h.mount(CommandsPlugin, { channel: 'wecom' }) // ← 通道还不存在
+    await h.mount({
+      name: 'test-channel',
+      inject: ['im'],
+      apply(ctx: Context) {
+        ctx.im.registerChannel('wecom', fake.channel)
+      },
+    })
+
+    const replies = await fake.receive('/list')
+    assert.equal(replies.length, 1, '通道后到，命令功能也该收到它的消息')
+    assert.match(replies[0]?.heading ?? '', /^🖥 DSH 会话（1）/)
+    await h.dispose()
+  })
+
+  test('配了通道名就只收那个通道的；没配则全收', async () => {
+    const h = createTestContext()
+    const wecom = fakeChannel()
+    const feishu = fakeChannel()
+    h.provide('agents', { roots: () => [] })
+    h.provide('sessionProjections', { stateOf: () => undefined })
+    await h.mount(ImRegistry)
+    await h.mount({
+      name: 'channels',
+      inject: ['im'],
+      apply(ctx: Context) {
+        ctx.im.registerChannel('wecom', wecom.channel)
+        ctx.im.registerChannel('feishu', feishu.channel)
+      },
+    })
+
+    const scoped = await h.mount(CommandsPlugin, { channel: 'wecom' })
+    assert.equal((await wecom.receive('/help')).length, 1, '指名 wecom 时该收')
+    assert.equal((await feishu.receive('/help')).length, 0, '指名 wecom 时不该收 feishu 的')
+    await scoped.dispose()
+
+    await h.mount(CommandsPlugin, {})
+    assert.equal((await wecom.receive('/help')).length, 1)
+    assert.equal((await feishu.receive('/help')).length, 1, '没指名则每个通道都收')
     await h.dispose()
   })
 })

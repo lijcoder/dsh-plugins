@@ -2,7 +2,13 @@ import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 import type { Context } from '@deepseek-ai/cordis'
 import { createTestContext } from '@lijcoder/dsh-plugin-testkit'
-import ImRegistry, { type ImCapabilities, type ImChannel, type ImDocument } from '../src/index.js'
+import ImRegistry, {
+  type ImCapabilities,
+  type ImChannel,
+  type ImDocument,
+  type ImInbound,
+  type ImMessage,
+} from '../src/index.js'
 
 const CAPABILITIES: ImCapabilities = {
   richText: true,
@@ -11,19 +17,37 @@ const CAPABILITIES: ImCapabilities = {
   proactive: true,
 }
 
-/** 一个只记账的通道替身。 */
+/** 一个只记账的通道替身；`deliver` 用来模拟收到一条消息。 */
 function fakeChannel() {
   const sent: Array<{ target: string; document: ImDocument }> = []
+  const subscribers = new Set<(message: ImInbound) => void>()
   const channel: ImChannel = {
     capabilities: CAPABILITIES,
     async send(target, document) {
       sent.push({ target, document })
     },
-    onMessage() {
-      return () => {}
+    onMessage(handler) {
+      subscribers.add(handler)
+      return () => subscribers.delete(handler)
     },
   }
-  return { channel, sent }
+  return {
+    channel,
+    sent,
+    /** 模拟通道收到一条消息。 */
+    deliver(text: string): void {
+      const inbound: ImInbound = {
+        conversation: { id: 'chat-1', kind: 'direct' },
+        sender: { id: 'tester' },
+        text,
+        reply: async () => {},
+      }
+      for (const handler of [...subscribers]) handler(inbound)
+    },
+    get subscriberCount(): number {
+      return subscribers.size
+    },
+  }
 }
 
 /** 挂一个「注册了若干通道」的 provider fiber。 */
@@ -99,6 +123,87 @@ describe('ImRegistry', () => {
     await fiber.dispose()
     assert.deepEqual(h.ctx.im.list(), [], '通道应随 provider fiber 一起注销')
     assert.throws(() => h.ctx.im.channel('wecom'), /没有名为 "wecom" 的 IM 通道/)
+    await h.dispose()
+  })
+})
+
+describe('ImRegistry 的入站转发', () => {
+  /** 挂一个把给定通道注册为 `name` 的 provider。 */
+  function channelProvider(name: string, channel: ImChannel) {
+    return {
+      name: `provider-${name}`,
+      inject: ['im'],
+      apply(ctx: Context) {
+        ctx.im.registerChannel(name, channel)
+      },
+    }
+  }
+
+  test('订阅者收到任何通道的消息，channel 取自注册名', async () => {
+    const h = createTestContext()
+    const wecom = fakeChannel()
+    const feishu = fakeChannel()
+    await h.mount(ImRegistry)
+    await h.mount(channelProvider('wecom', wecom.channel))
+    await h.mount(channelProvider('feishu', feishu.channel))
+
+    const seen: ImMessage[] = []
+    h.ctx.im.onMessage((message) => seen.push(message))
+
+    wecom.deliver('来自企微')
+    feishu.deliver('来自飞书')
+
+    assert.deepEqual(seen.map((message) => [message.channel, message.text]), [
+      ['wecom', '来自企微'],
+      ['feishu', '来自飞书'],
+    ])
+    await h.dispose()
+  })
+
+  test('通道在订阅之后才注册，也照样收得到', async () => {
+    const h = createTestContext()
+    const seen: ImMessage[] = []
+    await h.mount(ImRegistry)
+    h.ctx.im.onMessage((message) => seen.push(message))
+
+    const late = fakeChannel()
+    await h.mount(channelProvider('wecom', late.channel))
+    late.deliver('迟到的通道')
+
+    assert.deepEqual(seen.map((message) => message.text), ['迟到的通道'])
+    await h.dispose()
+  })
+
+  test('通道注销后不再转发它的消息', async () => {
+    const h = createTestContext()
+    const wecom = fakeChannel()
+    await h.mount(ImRegistry)
+    const fiber = await h.mount(channelProvider('wecom', wecom.channel))
+    const seen: ImMessage[] = []
+    h.ctx.im.onMessage((message) => seen.push(message))
+
+    wecom.deliver('注销前')
+    await fiber.dispose()
+    assert.equal(wecom.subscriberCount, 0, '注销时应退掉对通道的订阅')
+    wecom.deliver('注销后')
+
+    assert.deepEqual(seen.map((message) => message.text), ['注销前'])
+    await h.dispose()
+  })
+
+  test('取消订阅后不再收到', async () => {
+    const h = createTestContext()
+    const wecom = fakeChannel()
+    await h.mount(ImRegistry)
+    await h.mount(channelProvider('wecom', wecom.channel))
+
+    const seen: ImMessage[] = []
+    const off = h.ctx.im.onMessage((message) => seen.push(message))
+    wecom.deliver('第一条')
+    off()
+    wecom.deliver('第二条')
+
+    assert.deepEqual(seen.map((message) => message.text), ['第一条'])
     await h.dispose()
   })
 })

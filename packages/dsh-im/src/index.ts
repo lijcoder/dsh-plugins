@@ -5,9 +5,12 @@
  *
  * ```ts
  * export const inject = ['im']
+ *
  * export function apply(ctx: Context, config: Config) {
- *   const channel = ctx.im.channel(config.channel)   // 配置里指定 'wecom' / 'feishu'
- *   await channel.send(config.target, { heading: '任务完成', facts: [...] })
+ *   // 出站：取通道发出去（通道可以后到，所以是发送时才解析）
+ *   ctx.im.channel(config.channel).send(config.target, { heading: '任务完成' })
+ *   // 入站：挂载即可订阅，不要求此刻已经有通道
+ *   ctx.im.onMessage((message) => { … })
  * }
  * ```
  *
@@ -25,6 +28,7 @@ export type {
   ImConversation,
   ImDocument,
   ImFact,
+  ImInbound,
   ImMessage,
   ImSection,
   ImSender,

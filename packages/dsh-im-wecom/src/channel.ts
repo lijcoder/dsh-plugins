@@ -1,5 +1,5 @@
 import type { Context } from '@deepseek-ai/cordis'
-import type { ImCapabilities, ImChannel, ImDocument, ImMessage } from '@lijcoder/dsh-im'
+import type { ImCapabilities, ImChannel, ImDocument, ImInbound } from '@lijcoder/dsh-im'
 import { renderDocument } from './render.js'
 import { WecomConnection, type WecomInboundMessage, type WecomOptions } from './wecom.js'
 
@@ -44,10 +44,14 @@ export function provideWecomChannel(ctx: Context, options: WecomChannelOptions):
   return channel
 }
 
-/** 企微的入站消息 → 中立消息。会话 id 在群里是 chatid、单聊是 userid。 */
-function toImMessage(inbound: WecomInboundMessage, capabilities: ImCapabilities): ImMessage {
+/**
+ * 企微的入站消息 → 中立消息。会话 id 在群里是 chatid、单聊是 userid。
+ *
+ * 不带 `channel`：通道名由注册表按注册名填写（`ctx.im.registerChannel(WECOM, …)`），
+ * 两个来源早晚会对不上。
+ */
+function toImMessage(inbound: WecomInboundMessage, capabilities: ImCapabilities): ImInbound {
   return {
-    channel: WECOM,
     conversation: inbound.chatId === undefined
       ? { id: inbound.userId, kind: 'direct' }
       : { id: inbound.chatId, kind: 'group' },

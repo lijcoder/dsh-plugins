@@ -88,6 +88,13 @@ export interface ImMessage {
 }
 
 /**
+ * 通道上报的入站消息——就 {@link ImMessage}，但**不带 `channel`**。
+ *
+ * 通道名由注册表按注册名填（通道自报一份就会有两个来源，早晚对不上）。
+ */
+export type ImInbound = Omit<ImMessage, 'channel'>
+
+/**
  * 一个即时通讯通道。
  *
  * 实现方负责三件事：如实声明 {@link ImCapabilities}、把 {@link ImDocument} 渲染成
@@ -97,6 +104,11 @@ export interface ImChannel {
   readonly capabilities: ImCapabilities
   /** 主动推送到某个会话；`target` 的语义（群 id / 用户 id）由通道解释。 */
   send(target: string, document: ImDocument): Promise<void>
-  /** 订阅收到的消息，返回取消订阅函数。 */
-  onMessage(handler: (message: ImMessage) => void): () => void
+  /**
+   * 上报收到的消息，返回取消订阅函数。
+   *
+   * 通常**不该由功能直接调用**：{@link ImRegistry.onMessage} 会订阅它并转发给
+   * 功能级订阅者，这样功能挂载时不必先等到通道就位。
+   */
+  onMessage(handler: (message: ImInbound) => void): () => void
 }
