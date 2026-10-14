@@ -96,8 +96,8 @@ export class CommandRouter {
  *
  * 入站从**接缝**订阅（`ctx.im.onMessage`），不直接解析某个通道——loader 是
  * 「先 await import 模块、再创建 fiber，且不等激活」，所以**行序不决定激活顺序**。
- * 在挂载时要求通道已就位会撞上竞态：本仓库踩过一次，`/list` 直接让 profile 起不来。
- * 订阅接缝之后，命令功能挂载得比通道早也照样收得到消息。
+ * 在挂载时要求通道已就位会撞上竞态：通道行还没激活，这个插件就挂载失败。订阅接缝
+ * 之后，命令功能挂载得比通道早也照样收得到消息。
  */
 export function registerCommands(ctx: Context, config: Config): void {
   const router = new CommandRouter((error, name) => {

@@ -20,8 +20,8 @@ declare module '@deepseek-ai/cordis' {
  *
  * 入站为什么要经过注册表：loader 是「先 `await import` 模块、再创建 fiber，且不等激活」，
  * 所以**行序不决定激活顺序**。功能若在挂载时就去解析某个具体通道，早晚会撞上
- * 「通道还没注册」的竞态（本仓库踩过：`/list` 直接让 profile 起不来）。
- * 把入站收进接缝后，功能的挂载不再依赖任何通道的时机。
+ * 「通道还没注册」的竞态——那时功能直接挂载失败。把入站收进接缝后，功能的挂载
+ * 不再依赖任何通道的时机。
  */
 export class ImRegistry extends Service {
   private readonly channels = new Map<string, ImChannel>()

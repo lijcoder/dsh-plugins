@@ -1,37 +1,33 @@
-# 企微全家桶（profile 组合包）
+# @lijcoder/dsh-im-wecom-profile
 
-**这是唯一的安装入口**——企业微信通道 + 任务完成/授权通知 + `/` 命令，一条命令装齐：
+## 概要
+
+企微全家桶：企业微信通道 + 任务完成/授权通知 + `/` 命令，一条命令装齐 [`dsh-im`](../dsh-im)、[`dsh-im-wecom`](../dsh-im-wecom)、[`dsh-notify`](../dsh-notify)、[`dsh-im-commands`](../dsh-im-commands) 四个包。
+
+这是本仓库唯一的安装入口。它自己不含任何代码：运行时内容就是那份 [`cordis.patch.yml`](cordis.patch.yml)，`src/index.ts` 只有一行 `export {}`（与 dsh 自己的 `agent-team-profile` 同形）。
+
+## 目录
+
+- [使用](#使用)
+- [配置](#配置)
+- [了解实现](#了解实现)
+- [延伸阅读](#延伸阅读)
+- [已知限制与待办](#已知限制与待办)
+
+## 使用
+
+### 装进 profile
 
 ```sh
 dsh plugin --profile web add @lijcoder/dsh-im-wecom-profile
+dsh plugin --profile web remove @lijcoder/dsh-im-wecom-profile
 ```
 
-它自己**不含任何代码**：运行时内容就是那份 [`cordis.patch.yml`](cordis.patch.yml)，
-`src/index.ts` 只有一行 `export {}`（与 dsh 自己的 `agent-team-profile` 同形）。
+本地 checkout 把包名换成 `./packages/dsh-im-wecom-profile`（先 `pnpm build`）。装完重启该 profile 的进程——插件模块代码不参与热重载。
 
-## 为什么成员包不能单独装
+成员包里任何一个单独 `add` 都不生效：`dsh plugin add` 一个不带 `dsh.bundle` 的包只把它作为普通依赖装进 profile，打一句 `declares no dsh.bundle` 的警告，不激活任何行。
 
-四个成员包——[`dsh-im`](../dsh-im)、[`dsh-im-wecom`](../dsh-im-wecom)、
-[`dsh-notify`](../dsh-notify)、[`dsh-im-commands`](../dsh-im-commands)——是**纯库**，
-不带 `dsh.bundle`。
-
-cordis 里「激活」的单位是 **bundle 的 patch**，不是包：`dsh plugin add 某个纯库` 只会把它
-作为普通依赖装进 profile，打一句 `declares no dsh.bundle` 的警告，**不激活任何行**。
-所以这套东西只能从本组合包装起。
-
-这么设计是为了**从根上排除一种静默故障**：如果成员包各自也带 patch，那么
-「组合包 + 成员包」同时装就会让同一个 row id 被插两次——而 cordis 的 `insert` 是
-无条件追加、不按 id 去重（[`applyEntryPatches`](https://github.com/deepseek-ai/deepseek-harness/blob/main/vendor/include/src/index.ts)
-就是 `data.push(...insert)`），结果是插件**挂载两次**：通知发两遍、企微两条长连接互相踢线。
-成员不带 patch，这个组合就不存在。
-
-dsh 自己也是这么做的：`agent-team-profile` 插的三行，对应三个都是纯库的包。
-
-代价是**加平台 = 加一个组合包**，而不是加一个可单独安装的插件。以后接飞书时，
-`dsh-im-feishu` 是纯库，再由一个「企微 + 飞书」的组合包把五行一次插进去——
-profile 组合包表达的是「一套配置」，本来就是这个粒度。
-
-## 它插哪四行
+### 它插哪四行
 
 | row id | 包 | 作用 |
 | --- | --- | --- |
@@ -40,47 +36,9 @@ profile 组合包表达的是「一套配置」，本来就是这个粒度。
 | `notify` | `@lijcoder/dsh-notify` | 完成 / 授权通知（`channel` 钉成 `wecom`） |
 | `im-commands` | `@lijcoder/dsh-im-commands` | `/list`、`/help` |
 
-行序**不**决定激活顺序（loader 先 await import 模块再创建 fiber，且不等激活）；这里按「接缝 → 通道 → 功能」排只是读起来清楚——功能都从接缝取入站消息，不要求通道先就位。
+行序不影响激活顺序（见 [AGENTS.md](../../AGENTS.md) 的「行序不决定激活顺序」）；按「接缝 → 通道 → 功能」排只是读起来清楚。
 
-## 配置
-
-缺少配置时**四行一起停用**（一个开关管整条链路），所以装完没配好不会让 profile 起不来：
-
-```sh
-export WECOM_BOT_ID=...
-export WECOM_BOT_SECRET=...
-export IM_NOTIFY_TARGET=chatid或userid
-```
-
-> ⚠️ 变量名**不能以 `DSH_` 开头**。启动器把 `DSH_` / `XDG_` / `DYLD_` / `BASH_FUNC_`
-> 保留给引导变量，写进 `.env` 文件会让 dsh **直接报错退出**（不是忽略）。
-> 这三个名字同时也能写进 `<启动目录>/.env` 或 `$DSH_HOME/.env`，两者都会生效。
-
-想写死凭证或改默认值，在自己 profile 的 `cordis.patch.yml` 里按 id 覆盖：
-
-```yaml
-- id: im-wecom
-  disabled: false
-  config:
-    botId: 'your-bot-id'
-    secret: 'your-bot-secret'
-- id: notify
-  disabled: false
-  config:
-    channel: wecom
-    target: 'your-chatid'
-    heading: 'DSH 任务完成'
-- id: im-commands
-  disabled: false
-```
-
-两点注意：
-
-1. 补丁**整块替换 `config`**，覆盖时要写全该行需要的键；
-2. bundle 层的 `disabled` 会**继续生效**（补丁不写 `disabled` 就沿用），
-   所以不靠环境变量启用时，**三行都要显式写 `disabled: false`**（`im` 接缝行不需要）。
-
-## 你会收到什么
+### 装完能看到什么
 
 ```
 ## ✅ DSH 任务通知
@@ -110,7 +68,7 @@ export IM_NOTIFY_TARGET=chatid或userid
 DSH 正在等你的授权，请回到会话里处理。
 ```
 
-在企微里发 `/list`（标题括号后是运行数；**一个工作目录一张表**，目录名当表标题）：
+在企微里发 `/list`：
 
 ```
 ## 🖥 DSH 会话（3）· 🏃 2 个运行中
@@ -131,23 +89,62 @@ DSH 正在等你的授权，请回到会话里处理。
 
 `/help` 列出所有命令；不是命令的普通聊天不回复；未知命令回一条带 `/help` 的提示。
 
-## 验证
+## 配置
+
+缺少配置时四行一起停用（一个开关管整条链路），所以装完没配好不会让 profile 起不来：
 
 ```sh
-pnpm --filter @lijcoder/dsh-im-wecom-profile test
+export WECOM_BOT_ID=...
+export WECOM_BOT_SECRET=...
+export IM_NOTIFY_TARGET=chatid或userid
 ```
 
-用例把 patch 当**结构**断言（row id、每行的完整包名、`disabled` 读哪几个环境变量），
-并额外断言**四个成员包确实没有各自的 patch**——那是这套设计成立的前提，
-不该只靠人记得。真正的跨包端到端（四个包挂在同一个 Context 上对着 Mock 企微服务端跑）
-在 [`dsh-im-wecom/tests/e2e.test.ts`](../dsh-im-wecom/tests/e2e.test.ts)。
+这些名字也能写进 `<启动目录>/.env` 或 `$DSH_HOME/.env`，两者都会生效；不能以 `DSH_` / `XDG_` / `DYLD_` / `BASH_FUNC_` 开头，否则会让 dsh 报错退出。
 
-## 注意与限制
+想写死凭证或改默认值，在自己 profile 的 `cordis.patch.yml` 里按 id 覆盖：
 
-- **同一个 botId 的长连接只能有一个**：企微会把旧连接踢掉。别让第二个进程或第二个
-  profile 用同一个 `botId`。
-- **授权通知只是提醒**：不能在企微里批准，得回会话处理。
-- **markdown 是这条通道的子集**：支持 `##`、`**加粗**`、`` `行内代码` ``、`>` 引用块、
-  标准 markdown 表格；**不支持** `<font color>`（会原样打出，所以状态只用 emoji 表达）。
-- **不补发历史**：插件加载前已结束的回合不会通知。
-- **`/list` 只覆盖当前进程内存里的会话**：没加载进内存的历史会话、其它进程看不到。
+```yaml
+- id: im-wecom
+  disabled: false
+  config:
+    botId: 'your-bot-id'
+    secret: 'your-bot-secret'
+- id: notify
+  disabled: false
+  config:
+    channel: wecom
+    target: 'your-chatid'
+    heading: 'DSH 任务完成'
+- id: im-commands
+  disabled: false
+```
+
+两点注意：补丁整块替换 `config`，覆盖时要写全该行需要的键；bundle 层的 `disabled` 继续生效，所以不靠环境变量启用时三行都要显式写 `disabled: false`（`im` 接缝行不需要）。
+
+## 了解实现
+
+<details>
+<summary>实现细节（维护者向）——点开</summary>
+
+[`cordis.patch.yml`](cordis.patch.yml) 只做一件事：往 profile 里插四行，`im` 之外的三个由「`WECOM_BOT_ID`、`WECOM_BOT_SECRET`、`IM_NOTIFY_TARGET` 三个变量齐了」统一开关，缺配置时整行 `disabled`。
+
+四个成员包是纯库，不带 `dsh.bundle`。理由与代价见 [AGENTS.md](../../AGENTS.md) 的「安装入口只能是组合包」；`tests/patch.test.ts` 把 patch 当结构断言，其中一条就是「成员不得带 `dsh.bundle`」——那是这套设计成立的前提，不该只靠人记得。
+
+</details>
+
+## 延伸阅读
+
+- 仓库取向与包表：[README](../../README.md)
+- 接缝契约：[`@lijcoder/dsh-im`](../dsh-im)
+- 企微通道的渲染与配置：[`@lijcoder/dsh-im-wecom`](../dsh-im-wecom)
+- 跨包端到端用例（四个包挂在同一个 Context 上对 Mock 企微服务端跑）：[`dsh-im-wecom/tests/e2e.test.ts`](../dsh-im-wecom/tests/e2e.test.ts)
+
+## 已知限制与待办
+
+成员包各自的行为细节（触发时机、渲染降级、命令语义）写在它们的 README 里；这里只列装完会碰到的边界：
+
+- 同一个 botId 的长连接只能有一个：企微会把旧连接踢掉。别让第二个进程或第二个 profile 用同一个 `botId`。
+- 授权通知只是提醒，不能在企微里批准，得回会话处理。
+- markdown 是这条通道的子集：支持 `##`、`**加粗**`、`` `行内代码` ``、`>` 引用块、标准 markdown 表格；不支持 `<font color>`，所以状态只用 emoji 表达。
+- 插件加载前已结束的回合不会补发通知。
+- `/list` 只覆盖当前进程内存里的会话：没加载进内存的历史会话、其它进程看不到。

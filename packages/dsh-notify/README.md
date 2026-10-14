@@ -1,37 +1,39 @@
 # @lijcoder/dsh-notify
 
-DeepSeek Harness 功能：**任务完成或需要授权时，往你在用的即时通讯软件推一条通知。**
+## 概要
 
-与平台无关——它只依赖接缝 [`@lijcoder/dsh-im`](../dsh-im)，具体发给企业微信还是飞书，
-由装了哪个通道包决定（企微见 [`@lijcoder/dsh-im-wecom`](../dsh-im-wecom)，飞书待做）。
+dsh 功能：任务完成、或需要用户授权时，往你在用的即时通讯软件推一条通知。
 
-## 两类触发
+平台无关——它只依赖接缝 [`@lijcoder/dsh-im`](../dsh-im)，发到企业微信还是飞书由装了的通道包决定（企微见 [`@lijcoder/dsh-im-wecom`](../dsh-im-wecom)）。发什么内容归它，怎么排版归通道。
+
+## 目录
+
+- [使用](#使用)
+- [配置](#配置)
+- [了解实现](#了解实现)
+- [延伸阅读](#延伸阅读)
+- [已知限制与待办](#已知限制与待办)
+
+## 使用
+
+本包是纯库（不带 `dsh.bundle`），不能单独装；装组合包 [`@lijcoder/dsh-im-wecom-profile`](../dsh-im-wecom-profile)，其中通知那一行等价于：
+
+```yaml
+- id: notify
+  name: '@lijcoder/dsh-notify'
+  config:
+    channel: wecom
+    target: chatid或userid
+```
+
+两类触发：
 
 | 触发 | 时机 |
 | --- | --- |
-| **任务完成** | `agent/status` 变成 `idle`。`idle` 表示整个 agent（含排队中的后续回合、维护任务）真正空闲，比单个 `turn/end` 更贴近「任务完成」。同一个回合只通知一次 |
-| **需要授权** | `approval/request`（waterfall）。工具要你拍板时发一条，带上工具名和原因 |
+| 任务完成 | `agent/status` 变成 `idle`。`idle` 表示整个 agent（含排队中的后续回合、维护任务）真正空闲，比单个 `turn/end` 更贴近「任务完成」。同一个回合只通知一次 |
+| 需要授权 | `approval/request`（waterfall）。工具要你拍板时发一条，带上工具名和原因 |
 
-`approval/request` **只旁观**：发完通知照常 `next()`，决策仍交给真正的回答者
-（Web UI / 权限策略），插件不参与放行与否。
-
-> 从 IM 直接批准**还没做**——那属于「IM 消息驱动 dsh」的范畴，需要
-> `@lijcoder/dsh-im-commands` 那样的收消息链路再加一层审批回答。
-
-## 只描述内容，不决定排版
-
-插件产出的是 `ImDocument`，位置和样式由通道决定：
-
-```ts
-{ heading: '✅ DSH 任务完成',
-  facts: [ { label: '会话', value: '修复登录超时' },
-           { label: '状态', value: '成功' },
-           { label: '目录', value: '/work/demo', code: true } ],
-  sections: [ { title: '问题', body: '…' }, { title: '回复', body: '…' } ] }
-```
-
-所以这里**一个字节上限都没有**（那是通道的能力）：`maxQuestionBytes` / `maxOutputBytes`
-管的是「放多少内容」，怎么排版、整条能不能放下归通道。
+`approval/request` 只旁观：发完通知照常 `next()`，决策仍交给真正的回答者（Web UI / 权限策略），插件不参与放行与否。
 
 ## 配置
 
@@ -47,22 +49,39 @@ DeepSeek Harness 功能：**任务完成或需要授权时，往你在用的即�
 | `maxQuestionBytes` / `maxOutputBytes` | `400` / `2000` | 这两段的字节预算 |
 | `dryRun` | `false` | 只记日志不发送，联调排障用 |
 
-## 行为约定
+## 了解实现
 
-- **旁路能力**：发送失败只写一条 warn，不冒泡回 agent loop，也不影响授权结果；
-  通道名配错同样只 warn（配置错不该让整轮对话炸掉）。
-- **标题来自投影**：读 `session-title` 注册的 `title` 投影（按已提交事件驱动，含重启后恢复的
-  历史），读不到才退化为该会话首条人类消息。不能只靠增量监听——插件可能在一个跑了很多轮的
-  会话中途才挂上，那时标题早就写过了。
-- **不补发历史**：插件加载前已结束的回合不会通知。
-- **通道惰性解析**：patch 里的行序不保证，所以发送时才取通道；缺通道只是这条通知发不出去。
+<details>
+<summary>实现细节（维护者向）——点开</summary>
 
-## 验证
+产出的是 `ImDocument`，位置和样式由通道决定：
 
-```sh
-pnpm --filter @lijcoder/dsh-notify test
+```ts
+{ heading: '✅ DSH 任务完成',
+  facts: [ { label: '会话', value: '修复登录超时' },
+           { label: '状态', value: '成功' },
+           { label: '目录', value: '/work/demo', code: true } ],
+  sections: [ { title: '问题', body: '…' }, { title: '回复', body: '…' } ] }
 ```
 
-19 个用例：文档结构（键值/段落/code 标记/字节预算）、注入与事件分发、两类触发、
-同回合去重、subagent 跳过、dryRun、发送失败与通道名写错只 warn、
-授权请求照常放行下游、`displayReason` 语言优先级、`session/disposed` 释放状态。
+所以这里一个字节上限都没有（那是通道的能力）：`maxQuestionBytes` / `maxOutputBytes` 管的是「放多少内容」，怎么排版、整条能不能放下归通道。
+
+行为约定：
+
+- 旁路能力：发送失败只写一条 warn，不冒泡回 agent loop，也不影响授权结果；通道名配错同样只 warn（配置错不该让整轮对话炸掉）。
+- 标题来自投影：读 `session-title` 注册的 `title` 投影（按已提交事件驱动，含重启后恢复的历史），读不到才退化为该会话首条人类消息。不能只靠增量监听——插件可能在一个跑了很多轮的会话中途才挂上，那时标题早就写过了。
+- 通道惰性解析：行序不决定激活顺序（见 [AGENTS.md](../../AGENTS.md)），所以发送时才取通道；缺通道只是这条通知发不出去。
+
+</details>
+
+## 延伸阅读
+
+- 接缝契约：[`@lijcoder/dsh-im`](../dsh-im)
+- 安装与环境变量：[`@lijcoder/dsh-im-wecom-profile`](../dsh-im-wecom-profile)
+- 部署与限制的说明：[README](../../README.md)
+
+## 已知限制与待办
+
+- 从 IM 直接批准还没做：那属于「IM 消息驱动 dsh」的范畴，需要收消息链路再加一层审批回答（`dsh-im-commands` 已有收消息的前一半）。
+- 不补发历史：插件加载前已结束的回合不会通知。
+- 只报状态迁移，不记录审批是否被处理：授权通知发出去之后，`/list` 里看不到待审批数。
