@@ -114,7 +114,7 @@ describe('跨包：企微通道 + 通知 + / 命令', () => {
     assert.doesNotMatch(sent, /<font/)
   })
 
-  test('企微里发 /list → 被动回复按目录分组的会话清单', async (t) => {
+  test('企微里发 /list → 被动回复按目录分组的会话清单（一个目录一张表）', async (t) => {
     await compose(t)
     const since = server.received.length
     const reqId = server.sendTextMessage('/list')
@@ -129,9 +129,11 @@ describe('跨包：企微通道 + 通知 + / 命令', () => {
     const sent = String(frame.body.stream.content)
     // 标题保持「会话（总数）」原样，括号后追加运行数（本例只有一个空闲会话）
     assert.match(sent, /^## 🖥 DSH 会话（1）· 🏃 0 个运行中/)
-    // 企微支持标准 markdown 表格，所以走表格分支（不是降级形态）
-    assert.match(sent, /\| 目录 \| 会话 \| 状态 \| sessionId \|/)
-    assert.match(sent, /\| ~\/work\/demo \| 修复登录超时 \| 💤 空闲 \| sess-compose-1 \|/)
+    // 目录名缩写后当表标题，表体只留会话/状态/id
+    assert.match(sent, /\*\*~\/work\/demo\*\*/)
+    assert.match(sent, /\| 会话 \| 状态 \| sessionId \|/)
+    assert.match(sent, /\| 修复登录超时 \| 💤 空闲 \| sess-compose-1 \|/)
+    assert.doesNotMatch(sent, /\| 目录 \|/, '目录已经当表标题了，不该还在列里')
     assert.doesNotMatch(sent, /> 会话：/, '不该出现降级形态')
   })
 

@@ -64,55 +64,66 @@ describe('renderDocument', () => {
     assert.match(content, /\*\*状态\*\*：\/Users\/someone\/work$/)
   })
 
-  test('声明不支持表格的通道降级成加粗首列 + 引用块，不把 | 原样吐出去', () => {
+  test('声明不支持表格的通道降级成加粗表标题 + 逐行引用块，不把 | 原样吐出去', () => {
     const content = render({
-      table: {
+      tables: [{
+        title: '~/work/a',
         columns: ['会话', '状态', 'sessionId'],
         rows: [['修复登录超时', '🏃 运行中', 'session-1'], ['Greeting', '💤 空闲', 'session-2']],
-      },
+      }],
     }, NO_TABLES)
     assert.doesNotMatch(content, /\|/)
-    assert.match(content, /\*\*修复登录超时\*\*\n> 状态：🏃 运行中 · sessionId：session-1/)
-    assert.match(content, /\*\*Greeting\*\*\n> 状态：💤 空闲 · sessionId：session-2/)
-  })
-
-  test('降级时首列为空表示同组，不再重复打路径', () => {
-    const content = render({
-      table: {
-        columns: ['目录', '会话', '状态'],
-        rows: [
-          ['~/a', '修复登录超时', '🏃 运行中'],
-          ['', 'Greeting', '💤 空闲'],
-          ['~/b', '随手问问', '💤 空闲'],
-        ],
-      },
-    }, NO_TABLES)
     assert.equal(content, [
-      '**~/a**',
-      '> 会话：修复登录超时 · 状态：🏃 运行中',
+      '**~/work/a**',
       '',
-      '> 会话：Greeting · 状态：💤 空闲',
-      '',
-      '**~/b**',
-      '> 会话：随手问问 · 状态：💤 空闲',
+      '> 会话：修复登录超时 · 状态：🏃 运行中 · sessionId：session-1',
+      '> 会话：Greeting · 状态：💤 空闲 · sessionId：session-2',
     ].join('\n'))
   })
 
-  test('企微声明支持表格，表格走标准 markdown 表格分支', () => {
+  test('企微声明支持表格：一个目录一张表，目录名加粗在表上方', () => {
     const content = render({
-      table: { columns: ['会话', '状态'], rows: [['A', '运行中'], ['B', '空闲']] },
+      tables: [
+        { title: '~/work/a', columns: ['会话', '状态'], rows: [['A', '🏃 运行中'], ['B', '💤 空闲']] },
+        { title: '~/work/b', columns: ['会话', '状态'], rows: [['C', '💤 空闲']] },
+      ],
     })
     assert.equal(content, [
+      '**~/work/a**',
+      '',
       '| 会话 | 状态 |',
       '| --- | --- |',
-      '| A | 运行中 |',
-      '| B | 空闲 |',
+      '| A | 🏃 运行中 |',
+      '| B | 💤 空闲 |',
+      '',
+      '**~/work/b**',
+      '',
+      '| 会话 | 状态 |',
+      '| --- | --- |',
+      '| C | 💤 空闲 |',
     ].join('\n'))
+  })
+
+  test('表标题可以省略，也可以为空串（不当成表标题渲染）', () => {
+    assert.equal(render({ tables: [{ columns: ['会话'], rows: [['A']] }] }), [
+      '| 会话 |',
+      '| --- |',
+      '| A |',
+    ].join('\n'))
+    assert.equal(render({ tables: [{ title: '  ', columns: ['会话'], rows: [['A']] }] }), [
+      '| 会话 |',
+      '| --- |',
+      '| A |',
+    ].join('\n'))
+  })
+
+  test('没有行的表整个跳过（连标题一起）', () => {
+    assert.equal(render({ tables: [{ title: '~/work/a', columns: ['会话'], rows: [] }] }), '')
   })
 
   test('单元格里的竖线和换行被转义，不撑坏表格', () => {
     const content = render({
-      table: { columns: ['会话', '状态'], rows: [['a|b\nc', '空闲']] },
+      tables: [{ columns: ['会话', '状态'], rows: [['a|b\nc', '空闲']] }],
     })
     assert.match(content, /\| a\\\|b c \| 空闲 \|/)
   })

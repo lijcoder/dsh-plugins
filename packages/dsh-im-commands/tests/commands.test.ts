@@ -134,7 +134,7 @@ describe('registerCommands', () => {
     const replies = await receive('/list')
     assert.equal(replies[0]?.heading, '🖥 DSH 会话')
     assert.match(replies[0]?.footer ?? '', /当前没有活着的会话/)
-    assert.equal(replies[0]?.table, undefined)
+    assert.equal(replies[0]?.tables, undefined)
     await h.dispose()
   })
 
@@ -154,7 +154,7 @@ describe('registerCommands', () => {
     await idle.h.dispose()
   })
 
-  test('/list 按目录分组：首行打目录、同目录后续行首列留空，运行中的排在前面', async () => {
+  test('/list 一个目录一张表，目录当表标题，表里是会话与状态', async () => {
     const agents = [
       fakeAgent(topLevel('s1', '/work/a'), 'idle'),
       fakeAgent(topLevel('s2', '/work/a'), 'running'),
@@ -164,12 +164,35 @@ describe('registerCommands', () => {
     const replies = await receive('/list')
 
     assert.equal(replies[0]?.heading, '🖥 DSH 会话（3）· 🏃 2 个运行中')
-    assert.deepEqual(replies[0]?.table?.columns, ['目录', '会话', '状态', 'sessionId'])
-    assert.deepEqual(replies[0]?.table?.rows, [
-      // /work/a 组：运行中的 s2 排在空闲的 s1 前面
-      ['/work/a', '标题', '🏃 运行中', 's2'],
-      ['', '标题', '💤 空闲', 's1'],
-      ['/work/b', '标题', '🏃 运行中', 's3'],
+    assert.deepEqual(replies[0]?.tables, [
+      {
+        title: '/work/a',
+        columns: ['会话', '状态', 'sessionId'],
+        // 组内运行中的 s2 排在空闲的 s1 前面
+        rows: [['标题', '🏃 运行中', 's2'], ['标题', '💤 空闲', 's1']],
+      },
+      { title: '/work/b', columns: ['会话', '状态', 'sessionId'], rows: [['标题', '🏃 运行中', 's3']] },
+    ])
+    await h.dispose()
+  })
+
+  test('/list 同目录的会话留在同一张表里，不按状态快照拆开', async () => {
+    // 排序是「运行中先排」，但归组发生在排序之后：不能因为运行状态不同就把同一个目录
+    // 的会话拆成两张表。
+    const { h, receive } = await harness({
+      agents: [
+        fakeAgent(topLevel('s1', '/work/a'), 'idle'),
+        fakeAgent(topLevel('s2', '/work/b'), 'idle'),
+        fakeAgent(topLevel('s3', '/work/a'), 'running'),
+      ],
+      title: '标题',
+    })
+    const replies = await receive('/list')
+
+    assert.deepEqual(replies[0]?.tables?.map((table) => table.title), ['/work/a', '/work/b'])
+    assert.deepEqual(replies[0]?.tables?.[0]?.rows, [
+      ['标题', '🏃 运行中', 's3'],
+      ['标题', '💤 空闲', 's1'],
     ])
     await h.dispose()
   })
@@ -179,7 +202,7 @@ describe('registerCommands', () => {
       agents: [fakeAgent({ id: 's1', header: {} } as never, 'idle')],
     })
     const replies = await receive('/list')
-    assert.equal(replies[0]?.table?.rows[0]?.[0], '（无工作目录）')
+    assert.equal(replies[0]?.tables?.[0]?.title, '（无工作目录）')
     await h.dispose()
   })
 

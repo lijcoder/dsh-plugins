@@ -62,8 +62,12 @@ export function apply(ctx: Context, config: Config): void {
 所以加一个平台 = 新增一个通道包，功能代码一行不改。也让「这个平台支不支持表格」从
 猜测变成声明：通道通过 {@link ImCapabilities} 说明能力，不支持的形态由通道自己降级。
 
-**`ImDocument` 刻意保持最小**：只有 heading / facts / sections / table / footer。
+**`ImDocument` 刻意保持最小**：只有 heading / facts / sections / tables / footer。
 图片、按钮、卡片动作等有真实需求再加——过早定义富媒体模型，改起来比加还贵。
+
+表格是**复数**（`tables: ImTable[]`）且每张表可以带 `title`：分组维度（工作目录、批次……）
+写成表标题，而不是在一列里塞分组标记再用「空首格」表达与上一行同组——后者每个消费方
+都得照抄那条约定，还白白占一列宽度。`/list` 的「一个目录一张表」就是这么落的。
 
 ## 已知限制
 

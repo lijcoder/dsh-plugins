@@ -110,16 +110,23 @@ export IM_NOTIFY_TARGET=chatid或userid
 DSH 正在等你的授权，请回到会话里处理。
 ```
 
-在企微里发 `/list`（标题括号后是运行数；一级目录、二级会话，空首格表示与上一行同目录）：
+在企微里发 `/list`（标题括号后是运行数；**一个工作目录一张表**，目录名当表标题）：
 
 ```
 ## 🖥 DSH 会话（3）· 🏃 2 个运行中
 
-| 目录 | 会话 | 状态 | sessionId |
-| --- | --- | --- | --- |
-| ~/work/ai/dsh-plugins | 修复登录超时 | 🏃 运行中 | session-1a4cd73a-… |
-|  | 随手问问 | 💤 空闲 | session-2ffacbca-… |
-| ~/work/ai/test/chat | Greeting | 🏃 运行中 | session-92bfcaee-… |
+**~/work/ai/dsh-plugins**
+
+| 会话 | 状态 | sessionId |
+| --- | --- | --- |
+| 修复登录超时 | 🏃 运行中 | session-1a4cd73a-… |
+| 随手问问 | 💤 空闲 | session-2ffacbca-… |
+
+**~/work/ai/test/chat**
+
+| 会话 | 状态 | sessionId |
+| --- | --- | --- |
+| Greeting | 🏃 运行中 | session-92bfcaee-… |
 ```
 
 `/help` 列出所有命令；不是命令的普通聊天不回复；未知命令回一条带 `/help` 的提示。

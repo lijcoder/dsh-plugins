@@ -130,13 +130,15 @@ const NO_CWD = '（无工作目录）'
 
 /**
  * `/list` 文档：标题是「🖥 DSH 会话（总数）· 🏃 N 个运行中」，
- * 下面一张表，首列是工作目录、空首列表示与上一行同目录。
+ * 下面**一个工作目录一张表**，目录名当表标题，表里是这个目录下的会话与状态。
+ *
+ * 拆表而不是「一张大表 + 目录列」：目录名长短不齐，塞在列里既占宽度又要靠空首格
+ * 表达分组；一个目录一张表之后每张表都只剩真正会变的信息（会话、状态、id）。
  *
  * 括号后那截是给「打开企微第一眼」用的：总数说明规模，运行数说明现在有没有事在跑。
  *
- * 表格部分是刻意的「一级目录、二级会话」表达：通道渲染成带空首格的真表格
- * （企微支持标准 markdown 表格）；声明 `tables: false` 的通道自己降级成
- * 「加粗路径 + 引用块」，两边都不难看。
+ * 表格由通道渲染成标准 markdown 表格（企微支持）；声明 `tables: false` 的通道
+ * 自己降级成「加粗目录 + 逐行引用块」，功能侧不用改。
  *
  * 只覆盖本进程内存里的会话——没被加载的历史会话、其它进程（headless 等）看不到。
  */
@@ -150,28 +152,28 @@ function sessionListDocument(ctx: Context): ImDocument {
   const ordered = [...agents].sort((a, b) => Number(b.status === 'running') - Number(a.status === 'running'))
   const running = ordered.filter((agent) => agent.status === 'running').length
 
+  // 先按目录归组：组内已经是「运行中在前」，所以插入顺序就是表里的行序。
   const byCwd = new Map<string, string[][]>()
   for (const agent of ordered) {
     const cwd = agent.session.header.cwd ?? NO_CWD
-    const title = ctx.sessionProjections.stateOf(agent.session, 'title') ?? '（未命名）'
-    const status = agent.status === 'running' ? '🏃 运行中' : '💤 空闲'
-    const row = [title, status, agent.session.id]
+    const row = [
+      ctx.sessionProjections.stateOf(agent.session, 'title') ?? '（未命名）',
+      agent.status === 'running' ? '🏃 运行中' : '💤 空闲',
+      agent.session.id,
+    ]
     const group = byCwd.get(cwd)
     if (group === undefined) byCwd.set(cwd, [row])
     else group.push(row)
   }
 
-  const rows: string[][] = []
-  for (const [cwd, group] of [...byCwd].sort(([a], [b]) => a.localeCompare(b))) {
-    const label = cwd === NO_CWD ? cwd : shortenCwd(cwd)
-    group.forEach((row, index) => {
-      // 首行打目录，同目录的后续行首列留空（见 ImTable 的分组约定）。
-      rows.push(index === 0 ? [label, ...row] : ['', ...row])
-    })
-  }
-
   return {
     heading: `🖥 DSH 会话（${agents.length}）· 🏃 ${running} 个运行中`,
-    table: { columns: ['目录', '会话', '状态', 'sessionId'], rows },
+    tables: [...byCwd]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([cwd, rows]) => ({
+        title: cwd === NO_CWD ? cwd : shortenCwd(cwd),
+        columns: ['会话', '状态', 'sessionId'],
+        rows,
+      })),
   }
 }

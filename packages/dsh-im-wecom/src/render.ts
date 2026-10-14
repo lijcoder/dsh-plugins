@@ -1,4 +1,4 @@
-import type { ImCapabilities, ImDocument, ImFact } from '@lijcoder/dsh-im'
+import type { ImCapabilities, ImDocument, ImFact, ImTable } from '@lijcoder/dsh-im'
 import { shortenCwd, truncateUtf8 } from '@lijcoder/dsh-im'
 
 export { shortenCwd, truncateUtf8, utf8Length } from '@lijcoder/dsh-im'
@@ -10,8 +10,8 @@ export { shortenCwd, truncateUtf8, utf8Length } from '@lijcoder/dsh-im'
  * **标准 markdown 表格**；**不支持** `<font color>`（会原样打出）。所以：
  * - 状态只用 emoji 表达（颜色写不出来）；
  * - 元信息放进引用块；
- * - 表格走 {@link renderTable} 的表格分支；声明 `tables: false` 的通道才降级成
- *   「加粗首列 + 引用块」。
+ * - 表格走 {@link renderTable} 的表格分支，表标题（如工作目录）单独占一行加粗；
+ *   声明 `tables: false` 的通道才降级成「加粗表标题 + 逐行引用块」。
  *
  * 渲染是通道的职责：功能层只说"要一张三列表"，怎么摆由这里决定。
  */
@@ -29,8 +29,11 @@ export function renderDocument(document: ImDocument, capabilities: ImCapabilitie
     if (body === '') continue
     blocks.push(`${style.bold(section.title)}\n${body}`)
   }
-  if (document.table !== undefined && document.table.rows.length > 0) {
-    blocks.push(renderTable(document.table, style))
+  for (const table of document.tables ?? []) {
+    if (table.rows.length === 0) continue
+    const title = table.title?.trim() ?? ''
+    if (title !== '') blocks.push(style.bold(title))
+    blocks.push(renderTable(table, style))
   }
   if (document.footer !== undefined && document.footer !== '') blocks.push(document.footer)
 
@@ -48,30 +51,21 @@ function renderFacts(facts: readonly ImFact[] | undefined, style: Style): string
 }
 
 /**
- * 渲染表格。
+ * 渲染一张表（标题由调用方另起一块，这里只管表体）。
  *
- * 声明支持表格的通道用标准 markdown 表格；不支持的降级成
- * 「加粗首列 + 引用块」，比原样吐出 `| … |` 可读得多。
+ * 声明支持表格的通道用标准 markdown 表格；不支持的降级成逐行引用块，
+ * 比原样吐出 `| … |` 可读得多。
  */
-function renderTable(table: NonNullable<ImDocument['table']>, style: Style): string {
+function renderTable(table: ImTable, style: Style): string {
   if (style.tables) {
     const head = `| ${table.columns.join(' | ')} |`
     const divider = `| ${table.columns.map(() => '---').join(' | ')} |`
     const rows = table.rows.map((row) => `| ${row.map(cell).join(' | ')} |`)
     return [head, divider, ...rows].join('\n')
   }
-  // 首列当小标题，其余列在引用块里逐项列出；首列为空表示与上一行同组，不再重复打标题。
-  const rest = table.columns.slice(1)
-  return table.rows.map((row) => {
-    const [lead, ...others] = row
-    const detail = rest
-      .map((column, index) => `${column}：${cell(others[index] ?? '')}`)
-      .join(' · ')
-    const head = lead === undefined || lead === '' ? '' : style.bold(cell(lead))
-    if (detail === '') return head
-    const quote = style.quote(detail)
-    return head === '' ? quote : `${head}\n${quote}`
-  }).filter((block) => block !== '').join('\n\n')
+  return table.rows.map((row) => style.quote(
+    table.columns.map((column, index) => `${column}：${cell(row[index] ?? '')}`).join(' · '),
+  )).join('\n')
 }
 
 /** 表格单元格：内容可能带竖线或换行，会撑坏表格。 */

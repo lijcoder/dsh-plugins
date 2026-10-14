@@ -37,12 +37,15 @@ export interface ImSection {
 /**
  * 表格节点。通道不支持表格时会降级，功能侧无需关心。
  *
- * 约定：**首列为空表示与上一行同组**（用来表达「一级目录、二级会话」这类分组）。
- * 支持表格的通道渲染成空首格，降级的通道不重复打首列标题。
+ * `title` 是分组维度上的名字（目录、批次……）。**不用空首格表达「与上一行同组」**：
+ * 一个分组一张表，标题写在表上，比在一列里塞分组标记更省地方，也不用每个消费方
+ * 都照抄那条约定。
  */
 export interface ImTable {
   readonly columns: readonly string[]
   readonly rows: readonly (readonly string[])[]
+  /** 表格上方的小标题，例如工作目录；可省。 */
+  readonly title?: string
 }
 
 /** 一条与平台无关的消息。 */
@@ -55,8 +58,8 @@ export interface ImDocument {
   readonly heading?: string
   /** 正文段落。 */
   readonly sections?: readonly ImSection[]
-  /** 表格。 */
-  readonly table?: ImTable
+  /** 表格，**可以有多个**：一个分组一张（例如工作目录）。 */
+  readonly tables?: readonly ImTable[]
 }
 
 /** 收到的消息所属会话。 */
