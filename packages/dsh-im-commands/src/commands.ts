@@ -135,9 +135,13 @@ export function registerCommands(ctx: Context, config: Config): void {
 const NO_CWD = '（无工作目录）'
 
 /**
- * `/list` 文档：一张表，首列是工作目录、空首列表示与上一行同目录。
+ * `/list` 文档：**标题先报运行中的个数**，下面一张表，首列是工作目录、
+ * 空首列表示与上一行同目录。
  *
- * 这是刻意的「一级目录、二级会话」表达：通道渲染成带空首格的真表格
+ * 标题只放「有几个在跑」——那是打开企微第一眼要看的东西，总数放括号里补充。
+ * 一个都没有时换掉 🏃（`🏃 0` 读起来别扭），用 💤 把话说清楚。
+ *
+ * 表格部分是刻意的「一级目录、二级会话」表达：通道渲染成带空首格的真表格
  * （企微支持标准 markdown 表格）；声明 `tables: false` 的通道自己降级成
  * 「加粗路径 + 引用块」，两边都不难看。
  *
@@ -146,11 +150,12 @@ const NO_CWD = '（无工作目录）'
 function sessionListDocument(ctx: Context): ImDocument {
   const agents = ctx.agents.roots()
   if (agents.length === 0) {
-    return { heading: '🖥 DSH 会话', footer: '当前没有活着的会话。' }
+    return { heading: '💤 当前没有活着的会话' }
   }
 
   // 运行中的排在前面；同一状态下保持注册顺序（sort 是稳定的）。
   const ordered = [...agents].sort((a, b) => Number(b.status === 'running') - Number(a.status === 'running'))
+  const running = ordered.filter((agent) => agent.status === 'running').length
 
   const byCwd = new Map<string, string[][]>()
   for (const agent of ordered) {
@@ -173,7 +178,9 @@ function sessionListDocument(ctx: Context): ImDocument {
   }
 
   return {
-    heading: `🖥 DSH 会话（${agents.length}）`,
+    heading: running > 0
+      ? `🏃 ${running} 个会话运行中（共 ${agents.length}）`
+      : `💤 没有运行中的会话（共 ${agents.length}）`,
     table: { columns: ['目录', '会话', '状态', 'sessionId'], rows },
   }
 }

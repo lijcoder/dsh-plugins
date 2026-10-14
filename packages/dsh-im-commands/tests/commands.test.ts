@@ -130,13 +130,31 @@ describe('registerCommands', () => {
     await h.dispose()
   })
 
-  test('/list 在没有任何会话时给一句说明', async () => {
+  test('/list 在没有任何会话时不产出表格，只留一句话', async () => {
     const { h, receive } = await harness()
     const replies = await receive('/list')
-    assert.equal(replies[0]?.heading, '🖥 DSH 会话')
-    assert.match(replies[0]?.footer ?? '', /当前没有活着的会话/)
+    assert.equal(replies[0]?.heading, '💤 当前没有活着的会话')
     assert.equal(replies[0]?.table, undefined)
     await h.dispose()
+  })
+
+  test('/list 标题先报运行中的个数——打开就能看到有几个在跑', async () => {
+    const twoRunning = await harness({
+      agents: [
+        fakeAgent(topLevel('s1', '/work/a'), 'running'),
+        fakeAgent(topLevel('s2', '/work/a'), 'idle'),
+        fakeAgent(topLevel('s3', '/work/b'), 'running'),
+      ],
+    })
+    assert.equal((await twoRunning.receive('/list'))[0]?.heading, '🏃 2 个会话运行中（共 3）')
+    await twoRunning.h.dispose()
+
+    // 一个都没跑时不写「🏃 0」——那个 emoji 配 0 读起来别扭
+    const noneRunning = await harness({
+      agents: [fakeAgent(topLevel('s1', '/work/a'), 'idle')],
+    })
+    assert.equal((await noneRunning.receive('/list'))[0]?.heading, '💤 没有运行中的会话（共 1）')
+    await noneRunning.h.dispose()
   })
 
   test('/list 按目录分组：首行打目录、同目录后续行首列留空，运行中的排在前面', async () => {
@@ -148,7 +166,6 @@ describe('registerCommands', () => {
     const { h, receive } = await harness({ agents, title: '标题' })
     const replies = await receive('/list')
 
-    assert.equal(replies[0]?.heading, '🖥 DSH 会话（3）')
     assert.deepEqual(replies[0]?.table?.columns, ['目录', '会话', '状态', 'sessionId'])
     assert.deepEqual(replies[0]?.table?.rows, [
       // /work/a 组：运行中的 s2 排在空闲的 s1 前面
