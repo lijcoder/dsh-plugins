@@ -1,0 +1,42 @@
+{
+  "name": "@lijcoder/dsh-im",
+  "version": "0.1.0",
+  "description": "DeepSeek Harness 能力接缝：即时通讯通道的命名注册表与平台中立的文档模型",
+  "license": "MIT",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "prepack": "npm run build"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "*"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "catalog:dsh",
+    "@lijcoder/dsh-plugin-testkit": "workspace:*",
+    "@types/node": "^22.20.1",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}
