@@ -126,8 +126,8 @@ describe('跨包：企微通道 + 通知 + / 命令', () => {
     // 被动回复沿用收到的 req_id（协议要求应答同一个回调）
     assert.equal(frame.headers.req_id, reqId)
     const sent = String(frame.body.stream.content)
-    // 标题先报运行中的个数（本例只有一个空闲会话，所以是 0）
-    assert.match(sent, /^## 💤 没有运行中的会话（共 1）/)
+    // 标题保持「会话（总数）」原样，括号后追加运行数（本例只有一个空闲会话）
+    assert.match(sent, /^## 🖥 DSH 会话（1）· 🏃 0 个运行中/)
     // 企微支持标准 markdown 表格，所以走表格分支（不是降级形态）
     assert.match(sent, /\| 目录 \| 会话 \| 状态 \| sessionId \|/)
     assert.match(sent, /\| ~\/work\/demo \| 修复登录超时 \| 💤 空闲 \| sess-compose-1 \|/)

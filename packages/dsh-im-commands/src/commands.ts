@@ -135,11 +135,10 @@ export function registerCommands(ctx: Context, config: Config): void {
 const NO_CWD = '（无工作目录）'
 
 /**
- * `/list` 文档：**标题先报运行中的个数**，下面一张表，首列是工作目录、
- * 空首列表示与上一行同目录。
+ * `/list` 文档：标题是「🖥 DSH 会话（总数）· 🏃 N 个运行中」，
+ * 下面一张表，首列是工作目录、空首列表示与上一行同目录。
  *
- * 标题只放「有几个在跑」——那是打开企微第一眼要看的东西，总数放括号里补充。
- * 一个都没有时换掉 🏃（`🏃 0` 读起来别扭），用 💤 把话说清楚。
+ * 括号后那截是给「打开企微第一眼」用的：总数说明规模，运行数说明现在有没有事在跑。
  *
  * 表格部分是刻意的「一级目录、二级会话」表达：通道渲染成带空首格的真表格
  * （企微支持标准 markdown 表格）；声明 `tables: false` 的通道自己降级成
@@ -150,7 +149,7 @@ const NO_CWD = '（无工作目录）'
 function sessionListDocument(ctx: Context): ImDocument {
   const agents = ctx.agents.roots()
   if (agents.length === 0) {
-    return { heading: '💤 当前没有活着的会话' }
+    return { heading: '🖥 DSH 会话', footer: '当前没有活着的会话。' }
   }
 
   // 运行中的排在前面；同一状态下保持注册顺序（sort 是稳定的）。
@@ -178,9 +177,7 @@ function sessionListDocument(ctx: Context): ImDocument {
   }
 
   return {
-    heading: running > 0
-      ? `🏃 ${running} 个会话运行中（共 ${agents.length}）`
-      : `💤 没有运行中的会话（共 ${agents.length}）`,
+    heading: `🖥 DSH 会话（${agents.length}）· 🏃 ${running} 个运行中`,
     table: { columns: ['目录', '会话', '状态', 'sessionId'], rows },
   }
 }
