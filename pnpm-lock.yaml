@@ -133,6 +133,34 @@ importers:
         specifier: ^8.22.0
         version: 8.22.0
 
+  packages/dsh-im-wecom-profile:
+    dependencies:
+      '@lijcoder/dsh-im':
+        specifier: workspace:^
+        version: link:../dsh-im
+      '@lijcoder/dsh-im-commands':
+        specifier: workspace:^
+        version: link:../dsh-im-commands
+      '@lijcoder/dsh-im-wecom':
+        specifier: workspace:^
+        version: link:../dsh-im-wecom
+      '@lijcoder/dsh-notify':
+        specifier: workspace:^
+        version: link:../dsh-notify
+    devDependencies:
+      '@lijcoder/dsh-plugin-testkit':
+        specifier: workspace:*
+        version: link:../dsh-plugin-testkit
+      '@types/node':
+        specifier: ^22.20.1
+        version: 22.20.5
+      tsx:
+        specifier: ^4.23.15
+        version: 4.23.15
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+
   packages/dsh-notify:
     dependencies:
       '@lijcoder/dsh-im':
@@ -174,6 +202,10 @@ importers:
         version: 7.0.2
 
   packages/dsh-plugin-testkit:
+    dependencies:
+      js-yaml:
+        specifier: ^4.1.0
+        version: 4.3.2
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: catalog:dsh
@@ -187,6 +219,9 @@ importers:
       '@deepseek-ai/dsh-user-approval':
         specifier: catalog:dsh
         version: 0.2.1-alpha.2(c5c186e54030e7e2ceabca29af67b99a)
+      '@types/js-yaml':
+        specifier: ^4.0.9
+        version: 4.0.9
       '@types/node':
         specifier: ^22.20.1
         version: 22.20.5
@@ -470,6 +505,9 @@ packages:
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
 
+  '@types/js-yaml@4.0.9':
+    resolution: {integrity: sha512-k4MGaQl5TGo/iipqb2UDG2UwjXziSWkh0uysQelTlJpX1qGlpUZYm8PnO4DxG1qBomtJUdYJ6qR6xdIah10JLg==}
+
   '@types/node@22.20.5':
     resolution: {integrity: sha512-U2+DNr+wSjpsTS/wZGYHq7GcwfuSmKiKvoPvK22zwTlRhU91yOniN4qRR5KhIjvif7ysw/dz/hKmfDH0Ris4aA==}
 
@@ -603,6 +641,9 @@ packages:
     resolution: {integrity: sha512-RZNwNclF7+MS/8bDg70amg32dyeZGZxiDuQmZxKLAlQjr3jGyLx+4Kkk58UO7D2QdgFIQCovuSuZESne6RG6XQ==}
     engines: {node: '>= 6.0.0'}
 
+  argparse@2.0.1:
+    resolution: {integrity: sha512-8+9WqebbFzpX9OR+Wa6O29asIogeRMzcGtAINdpMHHyAg10f05aSFVBbcEqGf/PXw1EjAZ+q2/bEBg3DvurK3Q==}
+
   asynckit@0.4.0:
     resolution: {integrity: sha512-Oei9OH4tRh0YqU3GxhX79dM/mwVgvbZJaSNaRk+bshkj0S5cfHcgYakreBjrHwatXKbz+IoIdYLxrKim2MjW0Q==}
 
@@ -706,6 +747,10 @@ packages:
   https-proxy-agent@5.0.1:
     resolution: {integrity: sha512-dFcAjpTQFgoLMzC2VwU+C/CbS7uRL0lWmxDITmqm7C+7F0Odmj6s9l6alZc6AELXhrnggM2CeWSXHGOdX2YtwA==}
     engines: {node: '>= 6'}
+
+  js-yaml@4.3.2:
+    resolution: {integrity: sha512-SFNOvSJ+Dgf/9An904Yx+CgSlIPCkIpao4qo51lpee25TIRejdH3rhR4EZMGoNx3/TP3O+wzWuiTFl4sqbltzA==}
+    hasBin: true
 
   math-intrinsics@1.1.0:
     resolution: {integrity: sha512-/IXtbwEk5HTPyEwyKX6hGkYXxM9nbj64B+ilVJnC/R6B0pH5G4V3b0pVbL7DBj4tkhBAppbQUlf6F6Xl9LHu1g==}
@@ -946,6 +991,8 @@ snapshots:
 
   '@standard-schema/spec@1.1.0': {}
 
+  '@types/js-yaml@4.0.9': {}
+
   '@types/node@22.20.5':
     dependencies:
       undici-types: 6.21.0
@@ -1030,6 +1077,8 @@ snapshots:
       debug: 4.4.3
     transitivePeerDependencies:
       - supports-color
+
+  argparse@2.0.1: {}
 
   asynckit@0.4.0: {}
 
@@ -1163,6 +1212,10 @@ snapshots:
       debug: 4.4.3
     transitivePeerDependencies:
       - supports-color
+
+  js-yaml@4.3.2:
+    dependencies:
+      argparse: 2.0.1
 
   math-intrinsics@1.1.0: {}
 

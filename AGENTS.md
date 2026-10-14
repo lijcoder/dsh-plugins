@@ -27,17 +27,33 @@ packages/dsh-plugin-testkit/  只放「两个以上插件真的用得上」的�
 | 实现 | 实现契约的一个具体平台/机制，注册进接缝 | `dsh-im-wecom` |
 | 功能 | 只依赖接缝，产出中立数据结构，不关心实现是谁 | `dsh-notify`、`dsh-im-commands` |
 
-**不要做组合包。** 实测过三条 dsh 行为（2026-10，dsh 0.2.1-alpha.2）：
+**profile 组合包可以带 patch，但成员与组合包必须二选一。** 实测与源码依据
+（2026-10，dsh 0.2.1-alpha.2）：
 
-1. `dsh plugin add a b c` 会把三个包**全部**追加进 `dsh.profile.bundles` ——「一次装齐」用
-   多包 add 就行，不需要组合包；
-2. 只 add 一个包时，**它的 bundle 依赖不会被激活**（meta 包同样什么都不做，只打一句
-   「declares no dsh.bundle」的警告）；
-3. 两个 bundle 各 `insert` **同一个 row id** 会得到**两行**，不报错也不去重 ——
-   插件会被挂载两次（企微就是两条连接互相踢线）。
+1. `dsh plugin add a b c` 会把三个包**全部**追加进 `dsh.profile.bundles` —— 单装路线靠它；
+2. 只 add 一个包时，**它的 bundle 依赖不会被激活**（meta 包什么都不做，只打一句
+   「declares no dsh.bundle」的警告）。所以组合包必须**自己插行**，不能靠依赖；
+3. `insert` 是**无条件追加**：`vendor/include/src/index.ts` 的 `applyEntryPatches` 里
+   就是 `data.push(...insert)`，不按 id 去重。两个 patch 各插同一个 row id = **两行**
+   = 插件挂载两次（企微就是两条连接互相踢线）。
 
-所以组合包只有两种结局：patch 插重复行（3 的坑），或者什么都不激活（2 的坑）。
-要「一次装齐」就在 README 里写多包 add 命令。
+因此 dsh 只在两种情形下让两个 patch 插同一个 id：**替代型**（`bundle/sdk-minimal`
+文件头写明 "does not layer over dsh-base"）与**二选一型**（`experimental/inspector` 的
+本地 overlay vs `inspector-profile`）。**绝不当叠加用。**
+
+本仓库采用「二选一型」：四个成员包各自带 patch（可单装、可混搭多平台），
+再加一个 profile 组合包 `dsh-im-wecom-profile`（一条命令装齐）。两边的 row id 相同，
+**共用同一套环境变量名**，README 与组合包 patch 头部都写明二选一。
+`agent-team-profile` 那种「成员是纯库」的方案更省心，但会失去混搭能力——
+IM 需要企微 + 飞书共存，所以没那么选。
+
+### patch 必须被测试断言
+
+`cordis.patch.yml` 的 row id、行的 `name`、`disabled` 表达式全部**静默失败**：
+`name` 写错时启动器只打一句警告就丢弃该行，profile 照常起来，功能没了。
+所以每个带 patch 的包都有一个 `tests/patch.test.ts`，用 testkit 的 `parsePatch()` /
+`insertedEntries()` / `jsExpr()` 把 patch 当**结构**断言（解析器与加载器同源，
+包括 `!!js` 标签）。新增或改名包时先跑它。
 
 两条硬规矩：
 
@@ -108,8 +124,8 @@ Mock 的 `close()` 必须 `terminate()` 掉还连着的客户端，否则用例�
 整个测试进程会卡在 `wss.close()` 上。
 
 跨包层要单独测：**单包各自绿不代表拼起来能跑通**——行序、通道注册、inject 满足、
-渲染串起来，只有跨包 e2e 能验证。放在通道包里（Mock 协议属于通道），
-靠 devDependencies 引另外两个包，比为此单养一个组合包便宜。
+渲染串起来，只有跨包 e2e 能验证。它放在通道包的 `tests/` 里（Mock 协议属于通道），
+靠 devDependencies 引另外两个功能包；profile 组合包是**安装期**的事，不承担测试。
 
 ## 安装与验证
 

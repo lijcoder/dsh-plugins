@@ -1,0 +1,44 @@
+# 企微全家桶的 bundle 层：一次插入四行（接缝 → 通道 → 功能）。
+#
+# ⚠️ 与四个单包**二选一**：它们的 patch 插的是同样的 row id，而 cordis 的 insert
+# 是无条件追加、不按 id 去重。既装本组合包又单独装其中某个包 = 该插件挂载两次
+# （notify 会发两遍，im-wecom 会有两条长连接互相踢线）。详见 README。
+#
+# 缺凭证时**四行一起停用**（一个开关管整条链路），所以装完没配好不会让 profile 起不来：
+#
+#   export WECOM_BOT_ID=...
+#   export WECOM_BOT_SECRET=...
+#   export DSH_NOTIFY_TARGET=chatid或userid
+#
+# 想写死凭证 / 改默认值，在自己 profile 的 cordis.patch.yml 里按 id 覆盖。
+# 注意两点：
+#   1. 补丁整块替换 config，覆盖时要写全该行需要的键；
+#   2. 本层的 disabled 会继续生效（补丁不写 disabled 就沿用），
+#      所以不靠环境变量启用时，**三行都要显式写 disabled: false**（`im` 不需要）。
+#
+# 行序有语义：命令功能在挂载时就要在通道上订阅消息，所以通道那行必须排在它前面。
+- insert:
+    - id: im
+      name: '@lijcoder/dsh-im'
+
+    - id: im-wecom
+      name: '@lijcoder/dsh-im-wecom'
+      disabled: !!js "!(process.env.WECOM_BOT_ID && process.env.WECOM_BOT_SECRET && process.env.DSH_NOTIFY_TARGET)"
+      config:
+        botId: !!js process.env.WECOM_BOT_ID
+        secret: !!js process.env.WECOM_BOT_SECRET
+
+    - id: notify
+      name: '@lijcoder/dsh-notify'
+      disabled: !!js "!(process.env.WECOM_BOT_ID && process.env.WECOM_BOT_SECRET && process.env.DSH_NOTIFY_TARGET)"
+      config:
+        # 组合包把通道钉死成企微；要多平台共存就别用本组合包，改单装并在
+        # 自己 profile 的 patch 里给 notify 指定 channel。
+        channel: wecom
+        target: !!js process.env.DSH_NOTIFY_TARGET
+
+    - id: im-commands
+      name: '@lijcoder/dsh-im-commands'
+      disabled: !!js "!(process.env.WECOM_BOT_ID && process.env.WECOM_BOT_SECRET && process.env.DSH_NOTIFY_TARGET)"
+      config:
+        channel: wecom

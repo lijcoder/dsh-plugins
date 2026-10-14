@@ -24,6 +24,9 @@
   "scripts": {
     "typecheck": "tsc --noEmit"
   },
+  "dependencies": {
+    "js-yaml": "^4.1.0"
+  },
   "peerDependencies": {
     "@deepseek-ai/cordis": "*",
     "@deepseek-ai/dsh-agent": "*",
@@ -35,6 +38,7 @@
     "@deepseek-ai/dsh-agent": "catalog:dsh",
     "@deepseek-ai/dsh-session": "catalog:dsh",
     "@deepseek-ai/dsh-user-approval": "catalog:dsh",
+    "@types/js-yaml": "^4.0.9",
     "@types/node": "^22.20.1",
     "typescript": "^7.0.2"
   }

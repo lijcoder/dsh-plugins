@@ -28,6 +28,7 @@ await h.dispose()
 | `session` / `topLevel` / `subagent` / `fakeAgent` | dsh 会话与 agent 夹具 |
 | `userMessageEvent` / `assistantMessageEvent` / `turnStartEvent` / `turnEndEvent` / `titleEvent` | 事件流夹具 |
 | `emitSessionEvent` / `emitAgentStatus` / `requestApproval` | 按 dsh 真实分发模式触发事件 |
+| `parsePatch` / `insertedEntries` / `entryById` / `jsExpr` | 把 `cordis.patch.yml` 当**结构**解析与断言 |
 
 `requestApproval` 特别说明：`approval/request` 在 dsh 里是 **waterfall**，不是普通事件，
 所以它用 `ctx.waterfall` 触发并返回最终决策，而不是 `ctx.emit`。
