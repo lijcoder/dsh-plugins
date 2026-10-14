@@ -1,14 +1,17 @@
 # 企微全家桶的 bundle 层：一次插入四行（接缝 → 通道 → 功能）。
 #
-# ⚠️ 与四个单包**二选一**：它们的 patch 插的是同样的 row id，而 cordis 的 insert
-# 是无条件追加、不按 id 去重。既装本组合包又单独装其中某个包 = 该插件挂载两次
-# （notify 会发两遍，im-wecom 会有两条长连接互相踢线）。详见 README。
+# **这是唯一的安装入口。** 那四个成员包是纯库（不带 `dsh.bundle`），单独 `add` 它们
+# 只会作为普通依赖躺在 profile 里、不激活任何行——因为 cordis 里「激活」的单位是
+# bundle 的 patch，不是包。所以装这套就用本包，别去单独 add 成员。
 #
-# 缺凭证时**四行一起停用**（一个开关管整条链路），所以装完没配好不会让 profile 起不来：
+# 缺少配置时**四行一起停用**（一个开关管整条链路），所以装完没配好不会让 profile 起不来：
 #
 #   export WECOM_BOT_ID=...
 #   export WECOM_BOT_SECRET=...
-#   export DSH_NOTIFY_TARGET=chatid或userid
+#   export IM_NOTIFY_TARGET=chatid或userid
+#
+# 注意变量名不能以 DSH_ 开头：那两个前缀（DSH_ / XDG_ / DYLD_ / BASH_FUNC_）被
+# 启动器保留，写进 .env 会让 dsh 直接报错退出。
 #
 # 想写死凭证 / 改默认值，在自己 profile 的 cordis.patch.yml 里按 id 覆盖。
 # 注意两点：
@@ -23,22 +26,22 @@
 
     - id: im-wecom
       name: '@lijcoder/dsh-im-wecom'
-      disabled: !!js "!(process.env.WECOM_BOT_ID && process.env.WECOM_BOT_SECRET && process.env.DSH_NOTIFY_TARGET)"
+      disabled: !!js "!(process.env.WECOM_BOT_ID && process.env.WECOM_BOT_SECRET && process.env.IM_NOTIFY_TARGET)"
       config:
         botId: !!js process.env.WECOM_BOT_ID
         secret: !!js process.env.WECOM_BOT_SECRET
 
     - id: notify
       name: '@lijcoder/dsh-notify'
-      disabled: !!js "!(process.env.WECOM_BOT_ID && process.env.WECOM_BOT_SECRET && process.env.DSH_NOTIFY_TARGET)"
+      disabled: !!js "!(process.env.WECOM_BOT_ID && process.env.WECOM_BOT_SECRET && process.env.IM_NOTIFY_TARGET)"
       config:
-        # 组合包把通道钉死成企微；要多平台共存就别用本组合包，改单装并在
-        # 自己 profile 的 patch 里给 notify 指定 channel。
+        # 组合包把通道钉死成企微。要多平台共存，就再做一个「多通道」的 profile 组合包，
+        # 而不是在这里改成自动选择——显式写死，读的人不用猜。
         channel: wecom
-        target: !!js process.env.DSH_NOTIFY_TARGET
+        target: !!js process.env.IM_NOTIFY_TARGET
 
     - id: im-commands
       name: '@lijcoder/dsh-im-commands'
-      disabled: !!js "!(process.env.WECOM_BOT_ID && process.env.WECOM_BOT_SECRET && process.env.DSH_NOTIFY_TARGET)"
+      disabled: !!js "!(process.env.WECOM_BOT_ID && process.env.WECOM_BOT_SECRET && process.env.IM_NOTIFY_TARGET)"
       config:
         channel: wecom

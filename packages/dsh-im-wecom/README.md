@@ -15,24 +15,23 @@ ctx.im.registerChannel('wecom', channel)
 
 ## 用法
 
-通道是**实现方**，自己不发通知；装上它，再装一个功能插件（如
-[`@lijcoder/dsh-notify`](../dsh-notify)）。三者都要有 `im` 接缝：
+本包是**纯库**（不带 `dsh.bundle`），所以**不能单独装**——`dsh plugin add` 一个纯库只会把
+它作为普通依赖放进 profile，不激活任何行。要装就装组合包：
 
 ```sh
-dsh plugin --profile web add \
-  @lijcoder/dsh-im @lijcoder/dsh-im-wecom @lijcoder/dsh-notify
+dsh plugin --profile web add @lijcoder/dsh-im-wecom-profile
 ```
 
-本地 checkout 时把包名换成 `./packages/<包名>` 路径，顺序照上面即可。
+组合包会按「接缝 → 通道 → 功能」的顺序插好四行，并把本包设为依赖。
 
-凭证从环境变量读（缺则这一行停用，不会让 profile 起不来）：
+凭证从环境变量读（缺则那一行停用，不会让 profile 起不来）：
 
 ```sh
 export WECOM_BOT_ID=...
 export WECOM_BOT_SECRET=...
 ```
 
-等价于 profile 里这样一行：
+组合包给本包插的那一行等价于：
 
 ```yaml
 - id: im-wecom
@@ -41,6 +40,8 @@ export WECOM_BOT_SECRET=...
     botId: ...
     secret: ...
 ```
+
+想改默认值就在自己 profile 的 `cordis.patch.yml` 里按 `id: im-wecom` 覆盖。
 
 ## 能力声明
 

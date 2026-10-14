@@ -5,13 +5,17 @@
 ## 布局
 
 ```
-packages/<npm 包名>/          一个插件 = 一个包 = 一个可发布单元
-  package.json                dsh.bundle.patch + peer(宽松) / dev(catalog:)
-  cordis.patch.yml            该 bundle 的配置层：只 insert，不写真实密钥
+packages/<npm 包名>/          成员：纯库，一个包 = 一个可发布的库
+  package.json                不带 dsh.bundle；peer(宽松) / dev(catalog:)
   src/                        源码
   tests/                      单测与 e2e（`*.test.ts`）
   README.md                   用法、配置、限制
-packages/dsh-plugin-testkit/  只放「两个以上插件真的用得上」的测试工具
+packages/<npm 包名>-profile/  组合包：唯一安装入口
+  package.json                dsh.bundle.patch + 成员当 dependencies
+  cordis.patch.yml            插行（row id / 完整包名 / 环境变量开关）
+  src/index.ts                只有 export {}
+  tests/patch.test.ts         patch 结构断言
+packages/dsh-plugin-testkit/  只放「两个以上包真的用得上」的测试工具
 ```
 
 包目录名 = npm 包名（含 scope 去掉 `@scope/` 前缀后仍保留 `dsh-` 前缀），
@@ -27,25 +31,31 @@ packages/dsh-plugin-testkit/  只放「两个以上插件真的用得上」的�
 | 实现 | 实现契约的一个具体平台/机制，注册进接缝 | `dsh-im-wecom` |
 | 功能 | 只依赖接缝，产出中立数据结构，不关心实现是谁 | `dsh-notify`、`dsh-im-commands` |
 
-**profile 组合包可以带 patch，但成员与组合包必须二选一。** 实测与源码依据
+**组合包是唯一的安装入口，成员包保持纯库（不带 patch）。** 实测与源码依据
 （2026-10，dsh 0.2.1-alpha.2）：
 
-1. `dsh plugin add a b c` 会把三个包**全部**追加进 `dsh.profile.bundles` —— 单装路线靠它；
-2. 只 add 一个包时，**它的 bundle 依赖不会被激活**（meta 包什么都不做，只打一句
-   「declares no dsh.bundle」的警告）。所以组合包必须**自己插行**，不能靠依赖；
+1. 「激活」的单位是 **bundle 的 patch**，不是包：`dsh plugin add` 一个纯库只会把它作为
+   普通依赖装进 profile，打一句 `declares no dsh.bundle` 的警告，**不激活任何行**；
+2. 只 add 一个带 bundle 的包时，**它的 bundle 依赖同样不会被激活**。所以组合包必须
+   **自己插行**，不能靠依赖；
 3. `insert` 是**无条件追加**：`vendor/include/src/index.ts` 的 `applyEntryPatches` 里
    就是 `data.push(...insert)`，不按 id 去重。两个 patch 各插同一个 row id = **两行**
    = 插件挂载两次（企微就是两条连接互相踢线）。
 
-因此 dsh 只在两种情形下让两个 patch 插同一个 id：**替代型**（`bundle/sdk-minimal`
-文件头写明 "does not layer over dsh-base"）与**二选一型**（`experimental/inspector` 的
-本地 overlay vs `inspector-profile`）。**绝不当叠加用。**
+所以「成员各自带 patch + 组合包也插同样 id」是个静默故障源。本仓库的做法与 dsh 的
+`agent-team-profile` 一致：**成员是纯库，组合包插行**，从根上排除了重复的可能。
+组合包的 patch 测试里有断言守住这条（成员不得带 `dsh.bundle`）。
 
-本仓库采用「二选一型」：四个成员包各自带 patch（可单装、可混搭多平台），
-再加一个 profile 组合包 `dsh-im-wecom-profile`（一条命令装齐）。两边的 row id 相同，
-**共用同一套环境变量名**，README 与组合包 patch 头部都写明二选一。
-`agent-team-profile` 那种「成员是纯库」的方案更省心，但会失去混搭能力——
-IM 需要企微 + 飞书共存，所以没那么选。
+代价要认：**加平台 = 加一个组合包**，而不是加一个可单装的插件。这是刻意的——
+profile 组合包表达的本来就是「一套配置」这个粒度。dsh 自己也只在两种情形下让两个 patch
+插同一个 id：替代型（`bundle/sdk-minimal` 写明 "does not layer over dsh-base"）与
+二选一型（`experimental/inspector` 的本地 overlay vs `inspector-profile`），绝不当叠加用。
+
+### 环境变量名不能用保留前缀
+
+`packages/boot/app-boot/src/index.ts` 里 `BOOTSTRAP_PREFIXES = ['DSH_', 'XDG_', 'DYLD_', 'BASH_FUNC_']`：
+`.env` 文件里出现这些前缀的变量会让 dsh **直接报错退出**（不是忽略）。所以插件的环境变量
+一律避开它们（我们用 `WECOM_BOT_ID`、`IM_NOTIFY_TARGET`）。组合包的 patch 测试里有断言守住这条。
 
 ### patch 必须被测试断言
 
@@ -153,8 +163,11 @@ dsh --profile <测试 profile> --dump-config | grep <row id>
 
 ## 新增一个插件
 
-1. `mkdir packages/<name>`，照现有包的 `package.json` / `tsconfig.json` 抄一份；
-2. `dsh.bundle.patch` 指向自己的 `cordis.patch.yml`，row 的 `name` 写**完整包名**；
-3. 在根 README 的插件表里加一行；
-4. `pnpm install && pnpm check`；
-5. 装进隔离 profile，`--dump-config` 确认那一层在。
+1. 新能力先定**接缝**（契约 + `ctx.im` 式注册表），实现与功能都只依赖它；
+2. 成员包 `mkdir packages/<name>`，照现有成员的 `package.json` / `tsconfig.json` 抄一份，
+   **不要**加 `dsh.bundle`；
+3. 需要能被安装时，改组合包的 `cordis.patch.yml`：row 的 `name` 写**完整包名**，
+   行序按「接缝 → 实现 → 功能」，缺配置的行用 `!!js` 闸门停用；
+4. 根 README 的包表加一行；
+5. `pnpm install && pnpm check`；
+6. 装进隔离 profile，`--dump-config` 确认那一层在、且没有重复行。
