@@ -6,11 +6,12 @@ export { shortenCwd, truncateUtf8, utf8Length } from '@lijcoder/dsh-im'
 /**
  * 把平台中立的 {@link ImDocument} 渲染成企微 markdown。
  *
- * 实测这条通道支持：`##` 标题、`**加粗**`、`` `行内代码` ``、`>` 引用块；
- * **不支持** `<font color>`（会原样打出）、表格、代码块。所以：
+ * 实测这条通道支持：`##` 标题、`**加粗**`、`` `行内代码` ``、`>` 引用块、
+ * **标准 markdown 表格**；**不支持** `<font color>`（会原样打出）。所以：
  * - 状态只用 emoji 表达（颜色写不出来）；
  * - 元信息放进引用块；
- * - 表格由 {@link renderTable} 降级成「加粗首列 + 引用块」，而不是把 `| … |` 原样打出去。
+ * - 表格走 {@link renderTable} 的表格分支；声明 `tables: false` 的通道才降级成
+ *   「加粗首列 + 引用块」。
  *
  * 渲染是通道的职责：功能层只说"要一张三列表"，怎么摆由这里决定。
  */

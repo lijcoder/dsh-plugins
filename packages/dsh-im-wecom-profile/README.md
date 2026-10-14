@@ -110,23 +110,19 @@ export IM_NOTIFY_TARGET=chatid或userid
 DSH 正在等你的授权，请回到会话里处理。
 ```
 
-在企微里发 `/list`：
+在企微里发 `/list`（一级目录、二级会话；空首格表示与上一行同目录）：
 
 ```
 ## 🖥 DSH 会话（3）
 
-**`~/work/ai/dsh-plugins`**
-> 会话：修复登录超时 · 状态：🏃 运行中 · sessionId：session-1a4cd73a-…
-
-**`~/work/ai/test/chat`**
-> 会话：Greeting · 状态：🏃 运行中 · sessionId：session-92bfcaee-…
-> 会话：随手问问 · 状态：💤 空闲 · sessionId：session-2ffacbca-…
+| 目录 | 会话 | 状态 | sessionId |
+| --- | --- | --- | --- |
+| ~/work/ai/dsh-plugins | 修复登录超时 | 🏃 运行中 | session-1a4cd73a-… |
+|  | 随手问问 | 💤 空闲 | session-2ffacbca-… |
+| ~/work/ai/test/chat | Greeting | 🏃 运行中 | session-92bfcaee-… |
 ```
 
 `/help` 列出所有命令；不是命令的普通聊天不回复；未知命令回一条带 `/help` 的提示。
-
-> 表格是被**降级**后的样子：企微这条 markdown 通道不支持表格，通道自己把表格渲染成
-> 「加粗首列 + 引用块」。换成支持表格的通道会渲染成真表格，功能代码一行不改。
 
 ## 验证
 
@@ -144,7 +140,7 @@ pnpm --filter @lijcoder/dsh-im-wecom-profile test
 - **同一个 botId 的长连接只能有一个**：企微会把旧连接踢掉。别让第二个进程或第二个
   profile 用同一个 `botId`。
 - **授权通知只是提醒**：不能在企微里批准，得回会话处理。
-- **markdown 是这条通道的子集**：支持 `##`、`**加粗**`、`` `行内代码` ``、`>` 引用块；
-  不支持 `<font color>`（会原样打出）、表格、代码块。
+- **markdown 是这条通道的子集**：支持 `##`、`**加粗**`、`` `行内代码` ``、`>` 引用块、
+  标准 markdown 表格；**不支持** `<font color>`（会原样打出，所以状态只用 emoji 表达）。
 - **不补发历史**：插件加载前已结束的回合不会通知。
 - **`/list` 只覆盖当前进程内存里的会话**：没加载进内存的历史会话、其它进程看不到。

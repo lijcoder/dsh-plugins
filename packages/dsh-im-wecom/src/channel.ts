@@ -21,8 +21,9 @@ export interface WecomChannelOptions extends WecomOptions {
 export function provideWecomChannel(ctx: Context, options: WecomChannelOptions): ImChannel {
   const capabilities: ImCapabilities = {
     richText: true,
-    // 智能机器人这条 markdown 通道不支持表格，渲染时降级（见 renderDocument）。
-    tables: false,
+    // 智能机器人这条 markdown 通道支持标准 markdown 表格。
+    // 降级分支仍留在 renderDocument 里——那是声明 `tables: false` 的通道才走的路径。
+    tables: true,
     maxContentBytes: options.maxContentBytes,
     proactive: true,
   }

@@ -3,13 +3,16 @@ import { describe, test } from 'node:test'
 import type { ImCapabilities, ImDocument } from '@lijcoder/dsh-im'
 import { renderDocument, shortenCwd, truncateUtf8, utf8Length } from '../src/render.js'
 
-/** 企微真实能力：支持富文本，不支持表格。 */
+/** 企微真实能力：支持富文本，也支持标准 markdown 表格。 */
 const WECOM: ImCapabilities = {
   richText: true,
-  tables: false,
+  tables: true,
   maxContentBytes: 4_096,
   proactive: true,
 }
+
+/** 声明不支持表格的通道（目前没有，但接缝允许）——用来验证降级路径。 */
+const NO_TABLES: Partial<ImCapabilities> = { tables: false }
 
 function render(document: ImDocument, overrides: Partial<ImCapabilities> = {}): string {
   return renderDocument(document, { ...WECOM, ...overrides })
@@ -61,19 +64,19 @@ describe('renderDocument', () => {
     assert.match(content, /\*\*状态\*\*：\/Users\/someone\/work$/)
   })
 
-  test('表格降级：加粗首列 + 引用块，不把 | 原样吐出去', () => {
+  test('声明不支持表格的通道降级成加粗首列 + 引用块，不把 | 原样吐出去', () => {
     const content = render({
       table: {
         columns: ['会话', '状态', 'sessionId'],
         rows: [['修复登录超时', '🏃 运行中', 'session-1'], ['Greeting', '💤 空闲', 'session-2']],
       },
-    })
+    }, NO_TABLES)
     assert.doesNotMatch(content, /\|/)
     assert.match(content, /\*\*修复登录超时\*\*\n> 状态：🏃 运行中 · sessionId：session-1/)
     assert.match(content, /\*\*Greeting\*\*\n> 状态：💤 空闲 · sessionId：session-2/)
   })
 
-  test('表格降级：首列为空表示同组，不再重复打路径', () => {
+  test('降级时首列为空表示同组，不再重复打路径', () => {
     const content = render({
       table: {
         columns: ['目录', '会话', '状态'],
@@ -83,7 +86,7 @@ describe('renderDocument', () => {
           ['~/b', '随手问问', '💤 空闲'],
         ],
       },
-    })
+    }, NO_TABLES)
     assert.equal(content, [
       '**~/a**',
       '> 会话：修复登录超时 · 状态：🏃 运行中',
@@ -95,10 +98,10 @@ describe('renderDocument', () => {
     ].join('\n'))
   })
 
-  test('通道声明支持表格时用标准 markdown 表格', () => {
+  test('企微声明支持表格，表格走标准 markdown 表格分支', () => {
     const content = render({
       table: { columns: ['会话', '状态'], rows: [['A', '运行中'], ['B', '空闲']] },
-    }, { tables: true })
+    })
     assert.equal(content, [
       '| 会话 | 状态 |',
       '| --- | --- |',
@@ -110,7 +113,7 @@ describe('renderDocument', () => {
   test('单元格里的竖线和换行被转义，不撑坏表格', () => {
     const content = render({
       table: { columns: ['会话', '状态'], rows: [['a|b\nc', '空闲']] },
-    }, { tables: true })
+    })
     assert.match(content, /\| a\\\|b c \| 空闲 \|/)
   })
 

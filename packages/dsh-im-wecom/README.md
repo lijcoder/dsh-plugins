@@ -46,13 +46,22 @@ export WECOM_BOT_SECRET=...
 ## 能力声明
 
 ```ts
-{ richText: true, tables: false, maxContentBytes: 4096, proactive: true }
+{ richText: true, tables: true, maxContentBytes: 4096, proactive: true }
 ```
 
-`tables: false` 是实测结论：智能机器人这条 markdown 通道**不支持表格**
-（`<font color>` 也会被原样打出）。所以表格会被降级成「加粗首列 + 引用块」，
-而不是把 `| … |` 原样吐给用户。这个降级是**渲染层自己完成的**，功能插件只管说
-「要一张三列表」——加飞书那种能渲染真表格的通道时，功能代码一行不用改。
+`tables: true`：智能机器人这条 markdown 通道**支持标准 markdown 表格**。
+唯一已知不支持的是 `<font color>`（会被原样打出），所以状态只用 emoji 表达。
+
+`capabilities` 是渲染层的输入参数，不是装饰性的声明——`renderDocument` 按它决定排版：
+
+| 能力 | 渲染器据此做什么 |
+| --- | --- |
+| `richText` | 是否加 `##` / `**` / `` ` `` / `>` 标记；为 false 时输出无标记纯文本 |
+| `tables` | 表格走标准 markdown 表格，还是降级成「加粗首列 + 引用块」 |
+| `maxContentBytes` | 渲染完成后兜底截断整条内容 |
+
+功能插件只管说「要一张三列表」，怎么摆由这里决定——所以换一个声明 `tables: false` 的
+通道（纯文本 webhook 之类）时，功能代码一行不用改，降级由那个通道自己做。
 
 ## 配置
 
@@ -68,6 +77,10 @@ export WECOM_BOT_SECRET=...
 | `connectTimeoutMs` | `15000` | 等待认证成功上限，超时本条发送记失败 |
 | `maxContentBytes` | `4096` | 单条内容字节预算，渲染后兜底截断 |
 
+> SDK 文档写的上限是「回复内容最长 20480 字节」（`replyStream`）。我们保守用 4096——
+> 主动推送（`sendMessage`）的上限 SDK 没写，而且 4096 是任何企微 markdown 场景都安全的值。
+> 想放宽就在配置里调 `maxContentBytes`，但别超过 20480。
+
 **这里没有任何通知策略**（发什么、给谁发、什么时候发）。那些属于功能插件——
 通道配置只回答「怎么连、怎么渲染」。
 
@@ -77,11 +90,11 @@ export WECOM_BOT_SECRET=...
 pnpm --filter @lijcoder/dsh-im-wecom test
 ```
 
-12 个用例覆盖渲染层：标题/键值/段落排版、`<font>` 不使用、`code` 值缩写 home、
-**表格降级与真表格两条分支**、单元格转义、纯文本降级、字节预算截断。
-
-Mock 企微服务端驱动的连接层与组装层用例见 `dsh-im-wecom` 的后续提交
-（`tests/e2e.test.ts`）。
+17 个用例：渲染层（标题/键值/段落排版、`<font>` 不使用、`code` 值缩写 home、
+**真表格与降级两条分支**、单元格转义、纯文本降级、字节预算截断）+ 跨包端到端
+（四个包挂在同一个真实 Context 上，对着 `tests/mock-wecom.ts` 的 Mock 企微长连接
+服务端断言用户真正看到的帧：通知 markdown、`/list` 的表格、`/help`、普通聊天不回复、
+dispose 后长连接关闭）。
 
 ## 已知限制
 

@@ -29,7 +29,7 @@ export const inject = ['im']
 
 export function apply(ctx: Context): void {
   const channel: ImChannel = {
-    capabilities: { richText: true, tables: false, maxContentBytes: 4096, proactive: true },
+    capabilities: { richText: true, tables: true, maxContentBytes: 4096, proactive: true },
     async send(target, document) { /* 把 document 渲染成自己平台的形态后送出 */ },
     onMessage(handler) { /* 收到消息时调用 handler */ return () => {} },
   }

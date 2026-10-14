@@ -127,10 +127,10 @@ describe('跨包：企微通道 + 通知 + / 命令', () => {
     assert.equal(frame.headers.req_id, reqId)
     const sent = String(frame.body.stream.content)
     assert.match(sent, /^## 🖥 DSH 会话（1）/)
-    // 表格在这条通道上降级成「加粗路径 + 引用块」
-    assert.match(sent, /\*\*~\/work\/demo\*\*/)
-    assert.match(sent, /> 会话：修复登录超时 · 状态：💤 空闲 · sessionId：sess-compose-1/)
-    assert.doesNotMatch(sent, /\|/)
+    // 企微支持标准 markdown 表格，所以走表格分支（不是降级形态）
+    assert.match(sent, /\| 目录 \| 会话 \| 状态 \| sessionId \|/)
+    assert.match(sent, /\| ~\/work\/demo \| 修复登录超时 \| 💤 空闲 \| sess-compose-1 \|/)
+    assert.doesNotMatch(sent, /> 会话：/, '不该出现降级形态')
   })
 
   test('企微里发 /help → 列出命令；发普通聊天 → 不回复', async (t) => {
