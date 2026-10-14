@@ -56,6 +56,31 @@ importers:
         specifier: ^7.0.2
         version: 7.0.2
 
+  packages/dsh-im-wecom:
+    dependencies:
+      '@wecom/aibot-node-sdk':
+        specifier: ^1.0.7
+        version: 1.0.7(debug@4.4.3)
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: catalog:dsh
+        version: 4.0.5-alpha.1
+      '@deepseek-ai/schemastery':
+        specifier: catalog:dsh
+        version: 3.18.4
+      '@lijcoder/dsh-im':
+        specifier: workspace:*
+        version: link:../dsh-im
+      '@types/node':
+        specifier: ^22.20.1
+        version: 22.20.5
+      tsx:
+        specifier: ^4.23.15
+        version: 4.23.15
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+
   packages/dsh-notify-wecom:
     dependencies:
       '@wecom/aibot-node-sdk':

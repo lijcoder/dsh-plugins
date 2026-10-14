@@ -1,0 +1,48 @@
+{
+  "name": "@lijcoder/dsh-im-wecom",
+  "version": "0.1.0",
+  "description": "DeepSeek Harness 即时通讯通道：企业微信智能机器人（aibot）长连接，实现 @lijcoder/dsh-im 的 ImChannel",
+  "license": "MIT",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "prepack": "npm run build"
+  },
+  "dependencies": {
+    "@wecom/aibot-node-sdk": "^1.0.7"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "*",
+    "@deepseek-ai/schemastery": "*",
+    "@lijcoder/dsh-im": "^0.1.0"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "catalog:dsh",
+    "@deepseek-ai/schemastery": "catalog:dsh",
+    "@lijcoder/dsh-im": "workspace:*",
+    "@types/node": "^22.20.1",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}
