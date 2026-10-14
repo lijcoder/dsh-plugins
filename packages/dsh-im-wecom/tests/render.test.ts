@@ -73,6 +73,28 @@ describe('renderDocument', () => {
     assert.match(content, /\*\*Greeting\*\*\n> 状态：💤 空闲 · sessionId：session-2/)
   })
 
+  test('表格降级：首列为空表示同组，不再重复打路径', () => {
+    const content = render({
+      table: {
+        columns: ['目录', '会话', '状态'],
+        rows: [
+          ['~/a', '修复登录超时', '🏃 运行中'],
+          ['', 'Greeting', '💤 空闲'],
+          ['~/b', '随手问问', '💤 空闲'],
+        ],
+      },
+    })
+    assert.equal(content, [
+      '**~/a**',
+      '> 会话：修复登录超时 · 状态：🏃 运行中',
+      '',
+      '> 会话：Greeting · 状态：💤 空闲',
+      '',
+      '**~/b**',
+      '> 会话：随手问问 · 状态：💤 空闲',
+    ].join('\n'))
+  })
+
   test('通道声明支持表格时用标准 markdown 表格', () => {
     const content = render({
       table: { columns: ['会话', '状态'], rows: [['A', '运行中'], ['B', '空闲']] },

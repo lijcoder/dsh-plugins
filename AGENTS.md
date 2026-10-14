@@ -17,6 +17,33 @@ packages/dsh-plugin-testkit/  只放「两个以上插件真的用得上」的�
 包目录名 = npm 包名（含 scope 去掉 `@scope/` 前缀后仍保留 `dsh-` 前缀），
 这样 `pnpm --filter` 和目录能对上。
 
+### 可替换能力：接缝 / 实现 / 功能 / 组合包
+
+一个「有多个实现方」的能力分四层，照 dsh 自己的 `ctx.llm` / `ctx.browserUse` 来：
+
+| 层 | 职责 | 例子 |
+| --- | --- | --- |
+| 接缝 | 定义契约、Context key 与注册表；**不含任何实现** | `dsh-im`（`ctx.im`） |
+| 实现 | 实现契约的一个具体平台/机制，注册进接缝 | `dsh-im-wecom` |
+| 功能 | 只依赖接缝，产出中立数据结构，不关心实现是谁 | `dsh-notify`、`dsh-im-commands` |
+| 组合包 | 自己不含代码，只有 `cordis.patch.yml`，一行装齐 | `dsh-notify-wecom` |
+
+两条硬规矩：
+
+- Context key 用**单数**（`ctx.im`），注册表方法收**具名成员**（`registerChannel('wecom', …)`）。
+  消费方按名字取；只有一个成员时可以不指名，多个必须指名——静默选错比报错贵得多。
+- **渲染归实现，内容归功能**。功能产出结构（`ImDocument`），排版与平台限制由实现处理。
+  能力用声明表达（`capabilities.tables`），实现自己降级；不要写成 `if (platform === 'wecom')`。
+
+组合包必须关心**行序**：需要接缝 → 实现 → 功能。功能若在挂载时就要订阅（如命令功能
+必须先在通道上 `onMessage`），实现行必须排在它前面，否则启动期报错。
+
+### 构建顺序
+
+包之间靠 `lib/*.d.ts` 解析类型（`exports` 指向 `lib/`，因为要被 dsh 加载器按包名加载），
+所以 **`pnpm check` 是先 build 再 typecheck**。单独跑 `pnpm typecheck` 前要先 `pnpm build`。
+dsh 主仓库的 `typecheck` 也是先 build 再查，这不是特例。
+
 ## 插件形态
 
 - 导出 `name` / `inject` / `Config` / `apply`，跟 dsh 主仓库一致。
@@ -52,12 +79,13 @@ dsh 在 alpha，且 npm 上 `latest` 停在 rc 线。
 
 | 层 | 位置 | 用法 |
 | --- | --- | --- |
-| 纯函数单测 | `tests/*.test.ts` | 直接调 `renderNotification`、`parseCommand` 这类函数，不涉及 cordis |
-| 处理器级单测 | 同上 | 手搓的 `fakeContext` 直接戳某个事件处理器，快、断言精确 |
-| 集成 / e2e | 同上 | **`@lijcoder/dsh-plugin-testkit` 的真实 cordis Context** |
+| 纯函数单测 | `tests/*.test.ts` | 直接调 `renderDocument`、`parseCommand`、`notificationDocument` 这类函数，不涉及 cordis |
+| 集成 | 同上 | **`@lijcoder/dsh-plugin-testkit` 的真实 cordis Context** + 假的通道/服务替身 |
+| 组合 e2e | 组合包的 `tests/` | 多个包挂在同一个真实 Context 上，对着本地 Mock 服务端断言用户看到的帧 |
 
-第三层不可省。手搓 Context 绕过了注入解析、`ctx.effect` 清理和事件分发，于是
-「少声明 inject」「忘了释放连接」这类缺陷在单测里完全看不见。真实 Context 的测试要覆盖：
+**没有「手搓 Context 直接戳事件处理器」这一层。** 试过，代价是漏掉了真缺陷：
+手搓替身绕过注入解析、`ctx.effect` 清理和事件分发，于是「插件少声明 inject」
+「忘了释放连接」这类问题在单测里完全看不见。真实 Context 的测试要覆盖：
 
 1. 插件能挂载（inject 能满足），且少一个服务时保持 PENDING；
 2. 真实事件分发能把插件驱动到产生外部可观察的结果（发帧、写文件……）；
@@ -65,6 +93,11 @@ dsh 在 alpha，且 npm 上 `latest` 停在 rc 线。
 
 外部协议（企微长连接之类）用一个本地 Mock 服务端测，见
 `packages/dsh-notify-wecom/tests/mock-wecom.ts`：不需要凭证、不联外网、能断言每一帧。
+Mock 的 `close()` 必须 `terminate()` 掉还连着的客户端，否则用例失败没跑到 dispose 时，
+整个测试进程会卡在 `wss.close()` 上。
+
+组合层要单独测：**单包各自绿不代表拼起来能跑通**——行序、通道注册、inject 满足、
+渲染串起来，只有组合 e2e 能验证。
 
 ## 安装与验证
 
@@ -85,10 +118,10 @@ dsh --profile <测试 profile> --dump-config | grep <row id>
 
 - 中文注释与文档；只解释**为什么**，不复述代码在做什么。
 - 不过度防御：没有真实失败路径的分支不写，能抛就让它抛。
-- 重复三次再抽象。共享的东西只放**已被两个以上插件实际使用**的，否则 kit 会退化成垃圾场。
-- 一个能力只有一个消费者时不要提前拆包。企微那条连接将来会被「通知 / 命令 / 消息驱动会话」共用，
-  等第二个消费者出现再拆成 seam + provider，现在保持 `wecom.ts`（provider）与
-  其余（consumer）的分层即可。
+- 重复三次再抽象。共享的东西只放**已被两个以上包实际使用**的（`@lijcoder/dsh-im`
+  里的 `truncateUtf8` / `shortenCwd` 就是这么来的），否则 kit 会退化成垃圾场。
+- 先有第二个实现方，再抽象接缝。但**一旦确认会有多个实现方就要一次做对**——
+  `ctx.im` 的分层就是为「以后接飞书」付出的成本，事后补要改所有功能包。
 
 ## 新增一个插件
 

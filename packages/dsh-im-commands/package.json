@@ -1,0 +1,54 @@
+{
+  "name": "@lijcoder/dsh-im-commands",
+  "version": "0.1.0",
+  "description": "DeepSeek Harness 功能：在 IM 里用 / 命令查询 dsh 状态（/list、/help）",
+  "license": "MIT",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "prepack": "npm run build"
+  },
+  "dependencies": {
+    "@lijcoder/dsh-im": "workspace:^"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "*",
+    "@deepseek-ai/dsh-agent": "*",
+    "@deepseek-ai/dsh-session-projection": "*",
+    "@deepseek-ai/dsh-session-title": "*",
+    "@deepseek-ai/schemastery": "*"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "catalog:dsh",
+    "@deepseek-ai/dsh-agent": "catalog:dsh",
+    "@deepseek-ai/dsh-session": "catalog:dsh",
+    "@deepseek-ai/dsh-session-projection": "catalog:dsh",
+    "@deepseek-ai/dsh-session-title": "catalog:dsh",
+    "@deepseek-ai/schemastery": "catalog:dsh",
+    "@lijcoder/dsh-plugin-testkit": "workspace:*",
+    "@types/node": "^22.20.1",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}

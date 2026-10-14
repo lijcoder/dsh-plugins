@@ -4,13 +4,20 @@
 
 ## 插件
 
-| 包 | 说明 |
-| --- | --- |
-| [`@lijcoder/dsh-notify-wecom`](./packages/dsh-notify-wecom) | 顶层会话空闲、或需要用户授权时，通过企业微信智能机器人（aibot）长连接推送 markdown 通知：会话标题、工作目录、状态、回合耗时、最后回复或授权原因。同时支持 `/list`、`/help` 等企微内命令 |
+按「能力接缝 / 通道实现 / 功能 / 组合包」四层组织，加一个即时通讯平台只需新增一个通道包。
+
+| 层 | 包 | 说明 |
+| --- | --- | --- |
+| 接缝 | [`@lijcoder/dsh-im`](./packages/dsh-im) | 即时通讯通道的命名注册表（`ctx.im`）+ 平台中立的文档模型 |
+| 通道 | [`@lijcoder/dsh-im-wecom`](./packages/dsh-im-wecom) | 企业微信智能机器人（aibot）长连接；把中立文档渲染成企微 markdown |
+| 功能 | [`@lijcoder/dsh-notify`](./packages/dsh-notify) | 任务完成、或需要用户授权时推送通知 |
+| 功能 | [`@lijcoder/dsh-im-commands`](./packages/dsh-im-commands) | 在 IM 里用 `/` 命令查询 dsh 状态（`/list`、`/help`） |
+| 组合包 | [`@lijcoder/dsh-notify-wecom`](./packages/dsh-notify-wecom) | 装一次配齐上面四个（企微场景） |
+| 工具 | [`@lijcoder/dsh-plugin-testkit`](./packages/dsh-plugin-testkit) | 插件测试工具：真实 cordis Context 挂载、日志捕获、dsh 领域夹具 |
 
 ## 安装
 
-每个插件都是独立的 dsh bundle，按需装进某个 profile：
+每个插件都是独立的 dsh bundle，按需装进某个 profile。企微场景直接装组合包：
 
 ```sh
 dsh plugin --profile web add @lijcoder/dsh-notify-wecom
@@ -30,8 +37,12 @@ dsh --profile web --dump-config | grep -A3 dsh-notify-wecom
 
 ```
 packages/
-  dsh-notify-wecom/     插件：一个包 = 一个可发布的 bundle
-  dsh-plugin-testkit/   共享测试工具（真实 cordis Context 挂载、dsh 领域夹具）
+  dsh-im/               接缝：ImChannel / ImDocument / ctx.im
+  dsh-im-wecom/         通道：企微 aibot 长连接 + ImDocument → 企微 markdown
+  dsh-notify/           功能：完成/授权通知
+  dsh-im-commands/      功能：/list、/help
+  dsh-notify-wecom/     组合包：四行插进 profile；tests/ 放组合端到端用例
+  dsh-plugin-testkit/   测试工具（真实 cordis Context 挂载、dsh 领域夹具）
 ```
 
 约定见 [AGENTS.md](./AGENTS.md)。
@@ -42,7 +53,7 @@ packages/
 
 ```sh
 pnpm install
-pnpm check        # typecheck + build + test
+pnpm check        # build + typecheck + test
 ```
 
 | 命令 | 作用 |

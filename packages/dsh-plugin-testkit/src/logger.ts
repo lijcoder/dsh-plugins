@@ -50,6 +50,10 @@ export class LogRecorder {
  */
 export function captureLogs(ctx: Context, recorder = new LogRecorder()): LogRecorder {
   ctx.logger.exporter({
+    // 必须显式放开等级：cordis 的默认门槛是 INFO(1)，而它的等级序是
+    // ERROR=0 / INFO=1 / WARN=2 / DEBUG=3——不放开的话 warn 和 debug 会被静默丢掉，
+    // 于是「失败只记 warn」这类断言永远看到空日志。3 即 DEBUG，收全部。
+    levels: { default: 3 },
     export: (message: Message) => {
       recorder.info(...message.args)
     },

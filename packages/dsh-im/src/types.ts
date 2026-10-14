@@ -34,7 +34,12 @@ export interface ImSection {
   readonly title: string
 }
 
-/** 表格节点。通道不支持表格时会降级，功能侧无需关心。 */
+/**
+ * 表格节点。通道不支持表格时会降级，功能侧无需关心。
+ *
+ * 约定：**首列为空表示与上一行同组**（用来表达「一级目录、二级会话」这类分组）。
+ * 支持表格的通道渲染成空首格，降级的通道不重复打首列标题。
+ */
 export interface ImTable {
   readonly columns: readonly string[]
   readonly rows: readonly (readonly string[])[]

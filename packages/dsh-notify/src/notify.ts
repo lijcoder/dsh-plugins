@@ -1,18 +1,17 @@
-import { homedir } from 'node:os'
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-agent'
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-session-projection'
 import type {} from '@deepseek-ai/dsh-session-title'
 import type {} from '@deepseek-ai/dsh-user-approval'
-import type {} from './wecom.js'
+import { truncateUtf8, type ImDocument, type ImFact, type ImSection } from '@lijcoder/dsh-im'
 import type { Config } from './config.js'
 
 /**
  * 回合结束的状态在通知里的措辞与图标。
  *
- * 只用 emoji 表达状态：智能机器人这条 markdown 通道**不支持** `<font color>`，
- * 写了会被原样打出来（实测），所以颜色信息只能靠图标。
+ * 只用 emoji 表达状态：具体通道支不支持颜色是**通道**的事（企微那条 markdown
+ * 通道就不支持 `<font color>`，写了会被原样打出来），所以这里给的是通用图标。
  */
 export interface Outcome {
   readonly kind: string
@@ -165,83 +164,77 @@ export function isTopLevel(session: Session): boolean {
   return session.header.origin !== 'subagent' && (session.header.delegationDepth ?? 0) === 0
 }
 
-/** 渲染「需要授权」需要的那几项样式配置（`Config` 天然满足）。 */
-export interface ApprovalStyle {
-  readonly approvalHeading: string
-  readonly maxContentBytes: number
-}
-
-/** 渲染「任务完成」需要的那几项样式配置（`Config` 天然满足）。 */
+/** 渲染「任务完成」通知需要的那几项配置（`Config` 天然满足）。 */
 export interface NotificationStyle {
   readonly heading: string
   /** 是否带上这一轮的问题。 */
   readonly includeQuestion: boolean
   readonly includeOutput: boolean
-  readonly maxContentBytes: number
   readonly maxQuestionBytes: number
   readonly maxOutputBytes: number
 }
 
+/** 渲染「需要授权」通知需要的那几项配置（`Config` 天然满足）。 */
+export interface ApprovalStyle {
+  readonly approvalHeading: string
+}
+
 /**
- * 渲染企微 markdown。
+ * 「任务完成」通知的内容。
  *
- * 实测这条通道支持：`##` 标题、`**加粗**`、`` `行内代码` ``、`>` 引用块；
- * **不支持** `<font color>`（会原样打出）、表格、代码块。所以状态只用 emoji 表达，
- * 元信息放进引用块，问题与回复各占一段，并按字节预算截断。
+ * 只描述结构，不求排版：状态用 emoji 表达、元信息是键值行、问题与回复各是一段。
+ * 具体怎么渲染（引用块？卡片？表格？）由通道决定。
  */
-export function renderNotification(completion: Completion, config: NotificationStyle): string {
-  const lines = [`## ${completion.outcome.emoji} ${config.heading}`]
-  lines.push(`> **会话**：${completion.title ?? '（未命名）'}`)
-  lines.push(`> **状态**：${completion.outcome.label}`)
-  if (completion.cwd !== undefined) lines.push(`> **目录**：\`${shortenCwd(completion.cwd)}\``)
+export function notificationDocument(completion: Completion, style: NotificationStyle): ImDocument {
+  const facts: ImFact[] = [
+    { label: '会话', value: completion.title ?? '（未命名）' },
+    { label: '状态', value: completion.outcome.label },
+  ]
+  if (completion.cwd !== undefined) facts.push({ label: '目录', value: completion.cwd, code: true })
   const turn = turnLine(completion)
-  if (turn !== '') lines.push(`> **回合**：${turn}`)
-  lines.push(`> **Session**：\`${completion.sessionId}\``)
+  if (turn !== '') facts.push({ label: '回合', value: turn })
+  facts.push({ label: 'Session', value: completion.sessionId, code: true })
 
-  let content = lines.join('\n')
-  content = appendSection(content, '问题',
-    config.includeQuestion ? completion.question : undefined,
-    config.maxQuestionBytes, config.maxContentBytes)
-  content = appendSection(content, '回复',
-    config.includeOutput ? completion.output : undefined,
-    config.maxOutputBytes, config.maxContentBytes)
-  return truncateUtf8(content, config.maxContentBytes)
+  const sections: ImSection[] = []
+  if (style.includeQuestion) pushSection(sections, '问题', completion.question, style.maxQuestionBytes)
+  if (style.includeOutput) pushSection(sections, '回复', completion.output, style.maxOutputBytes)
+
+  return { heading: `${completion.outcome.emoji} ${style.heading}`, facts, sections }
 }
 
 /**
- * 追加一段 `**标题**` + 正文，正文按本节预算和整条剩余预算取小。
- * 放不下就整段不写，而不是挤掉后面更重要的内容。
+ * 「需要授权」通知的内容：告诉用户 DSH 卡在授权上，得回会话里处理。
+ *
+ * 原因可能挺长（比如沙箱越界的说明），所以和「问题/回复」一样放正文段落，
+ * 不放引用块——引用块里塞长文本在很多客户端上会被压成一行。
  */
-function appendSection(
-  content: string,
-  label: string,
+export function approvalDocument(approval: ApprovalNeeded, style: ApprovalStyle): ImDocument {
+  const facts: ImFact[] = [{ label: '会话', value: approval.title ?? '（未命名）' }]
+  if (approval.cwd !== undefined) facts.push({ label: '目录', value: approval.cwd, code: true })
+  facts.push({ label: '工具', value: approval.toolName, code: true })
+  facts.push({ label: 'Session', value: approval.sessionId, code: true })
+
+  const sections: ImSection[] = []
+  pushSection(sections, '原因', approval.reason, Number.MAX_SAFE_INTEGER)
+
+  return {
+    heading: `🔐 ${style.approvalHeading}`,
+    facts,
+    sections,
+    footer: 'DSH 正在等你的授权，请回到会话里处理。',
+  }
+}
+
+/** 追加一段正文；空内容整段不写，超预算按字节截断（不切断码点）。 */
+function pushSection(
+  sections: ImSection[],
+  title: string,
   text: string | undefined,
-  sectionBytes: number,
-  totalBytes: number,
-): string {
+  maxBytes: number,
+): void {
   const body = text?.trim()
-  if (body === undefined || body === '') return content
-  const prefix = `\n\n**${label}**\n`
-  const budget = Math.min(sectionBytes, totalBytes - utf8Length(content) - utf8Length(prefix))
-  if (budget <= 0) return content
-  return `${content}${prefix}${truncateUtf8(body, budget)}`
-}
-
-/**
- * 渲染「需要授权」通知：告诉用户 DSH 卡在授权上，得回会话里处理。
- */
-export function renderApproval(approval: ApprovalNeeded, config: ApprovalStyle): string {
-  const lines = [`## 🔐 ${config.approvalHeading}`]
-  lines.push(`> **会话**：${approval.title ?? '（未命名）'}`)
-  if (approval.cwd !== undefined) lines.push(`> **目录**：\`${shortenCwd(approval.cwd)}\``)
-  lines.push(`> **工具**：\`${approval.toolName}\``)
-  lines.push(`> **Session**：\`${approval.sessionId}\``)
-
-  // 原因可能挺长（比如沙箱越界的说明），所以和「问题/回复」一样放到正文段落里。
-  const content = appendSection(
-    lines.join('\n'), '原因', approval.reason, config.maxContentBytes, config.maxContentBytes,
-  )
-  return truncateUtf8(`${content}\n\nDSH 正在等你的授权，请回到会话里处理。`, config.maxContentBytes)
+  if (body === undefined || body === '') return
+  sections.push({ title, body: truncateUtf8(body, maxBytes) })
 }
 
 /**
@@ -265,7 +258,7 @@ export function registerNotify(ctx: Context, config: Config): void {
     if (completion === undefined) return
     if (!config.includeSubagents && !isTopLevel(agent.session)) return
     if (config.onlyCompleted && completion.outcome.kind !== 'completed') return
-    send(ctx, config, renderNotification({
+    send(ctx, config, notificationDocument({
       ...completion,
       title: titleOf(ctx, agent.session, completion.title),
     }, config))
@@ -274,7 +267,7 @@ export function registerNotify(ctx: Context, config: Config): void {
   ctx.on('approval/request', (request, next) => {
     if (config.includeApprovals) {
       const facts = collector.peek(request.agent.session)
-      send(ctx, config, renderApproval({
+      send(ctx, config, approvalDocument({
         sessionId: request.agent.session.id,
         ...facts,
         title: titleOf(ctx, request.agent.session, facts.title),
@@ -306,13 +299,25 @@ function approvalReason(request: {
   return excerpt(display?.zh ?? request.reason ?? display?.en ?? '', 200)
 }
 
-/** 发送一条通知：`dryRun` 只记日志，失败只告警，绝不冒泡回 agent loop。 */
-function send(ctx: Context, config: Config, content: string): void {
+/**
+ * 发送一条通知：`dryRun` 只记日志，失败只告警，绝不冒泡回 agent loop。
+ *
+ * 通道按名字**惰性解析**：功能插件可能先于通道注册就挂上（patch 里的行序不保证），
+ * 所以在发送时取；配置写错通道名也只是这条通知发不出去，不应该让整轮对话炸掉。
+ */
+function send(ctx: Context, config: Config, document: ImDocument): void {
   if (config.dryRun) {
-    ctx.logger.info('[dry-run] 未发送的通知：\n%s', content)
+    ctx.logger.info('[dry-run] 未发送的通知：%o', document)
     return
   }
-  ctx.wecom.sendMarkdown(config.target, content).catch((error: unknown) => {
+  let channel
+  try {
+    channel = ctx.im.channel(config.channel)
+  } catch (error) {
+    ctx.logger.warn('通知发送失败：%s', error instanceof Error ? error.message : String(error))
+    return
+  }
+  channel.send(config.target, document).catch((error: unknown) => {
     ctx.logger.warn('通知发送失败：%s', error instanceof Error ? error.message : String(error))
   })
 }
@@ -326,13 +331,6 @@ function turnLine(completion: Completion): string {
   }
   if (completion.endedAt !== undefined) parts.push(formatTimestamp(completion.endedAt))
   return parts.join(' · ')
-}
-
-/** 把 home 目录缩成 `~`，路径短一点更好读。 */
-export function shortenCwd(cwd: string, home: string = homedir()): string {
-  if (home === '') return cwd
-  if (cwd === home) return '~'
-  return cwd.startsWith(`${home}/`) ? `~${cwd.slice(home.length)}` : cwd
 }
 
 /** 取消息里的 text block 拼成纯文本；工具调用、图片等其它块跳过。 */
@@ -350,28 +348,6 @@ function excerpt(text: string, maxChars: number): string | undefined {
   const flat = text.replace(/\s+/g, ' ').trim()
   if (flat === '') return undefined
   return flat.length <= maxChars ? flat : `${flat.slice(0, maxChars - 1)}…`
-}
-
-/** UTF-8 字节长度：企微的 4096 限制是字节，不是字符。 */
-export function utf8Length(text: string): number {
-  return Buffer.byteLength(text, 'utf8')
-}
-
-/** 按 UTF-8 字节预算截断，不切断码点；截断时补省略号，结果长度永远 ≤ 预算。 */
-export function truncateUtf8(text: string, maxBytes: number): string {
-  if (maxBytes <= 0) return ''
-  if (utf8Length(text) <= maxBytes) return text
-  const budget = maxBytes - utf8Length('…')
-  if (budget <= 0) return ''
-  let used = 0
-  let out = ''
-  for (const char of text) {
-    const bytes = utf8Length(char)
-    if (used + bytes > budget) break
-    out += char
-    used += bytes
-  }
-  return `${out}…`
 }
 
 function formatDuration(ms: number): string {

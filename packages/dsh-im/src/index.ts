@@ -18,6 +18,7 @@
  */
 
 export { ImRegistry } from './registry.js'
+export { shortenCwd, truncateUtf8, utf8Length } from './text.js'
 export type {
   ImCapabilities,
   ImChannel,

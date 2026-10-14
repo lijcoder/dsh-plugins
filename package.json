@@ -13,6 +13,7 @@
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
-    "check": "pnpm typecheck && pnpm test && pnpm build"
+    "//check": "先 build：包之间靠 lib/*.d.ts 解析类型（dsh 的 exports 指向 lib/，因为它要被加载器按包名加载）。dsh 主仓库的 typecheck 也是先 build 再查。",
+    "check": "pnpm build && pnpm typecheck && pnpm test"
   }
 }

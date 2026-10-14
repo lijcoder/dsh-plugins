@@ -1,5 +1,7 @@
-import { homedir } from 'node:os'
 import type { ImCapabilities, ImDocument, ImFact } from '@lijcoder/dsh-im'
+import { shortenCwd, truncateUtf8 } from '@lijcoder/dsh-im'
+
+export { shortenCwd, truncateUtf8, utf8Length } from '@lijcoder/dsh-im'
 
 /**
  * 把平台中立的 {@link ImDocument} 渲染成企微 markdown。
@@ -57,16 +59,18 @@ function renderTable(table: NonNullable<ImDocument['table']>, style: Style): str
     const rows = table.rows.map((row) => `| ${row.map(cell).join(' | ')} |`)
     return [head, divider, ...rows].join('\n')
   }
-  // 首列当小标题，其余列在引用块里逐项列出。
+  // 首列当小标题，其余列在引用块里逐项列出；首列为空表示与上一行同组，不再重复打标题。
   const rest = table.columns.slice(1)
   return table.rows.map((row) => {
     const [lead, ...others] = row
-    const head = style.bold(cell(lead ?? ''))
     const detail = rest
       .map((column, index) => `${column}：${cell(others[index] ?? '')}`)
       .join(' · ')
-    return detail === '' ? head : `${head}\n${style.quote(detail)}`
-  }).join('\n\n')
+    const head = lead === undefined || lead === '' ? '' : style.bold(cell(lead))
+    if (detail === '') return head
+    const quote = style.quote(detail)
+    return head === '' ? quote : `${head}\n${quote}`
+  }).filter((block) => block !== '').join('\n\n')
 }
 
 /** 表格单元格：内容可能带竖线或换行，会撑坏表格。 */
@@ -103,33 +107,4 @@ function createStyle(capabilities: ImCapabilities): Style {
       return capabilities.richText ? `\`${shortenCwd(fact.value)}\`` : shortenCwd(fact.value)
     },
   }
-}
-
-/** 把 home 目录缩成 `~`，路径短一点更好读。 */
-export function shortenCwd(cwd: string, home: string = homedir()): string {
-  if (home === '') return cwd
-  if (cwd === home) return '~'
-  return cwd.startsWith(`${home}/`) ? `~${cwd.slice(home.length)}` : cwd
-}
-
-/** UTF-8 字节长度：企微的 4096 限制是字节，不是字符。 */
-export function utf8Length(text: string): number {
-  return Buffer.byteLength(text, 'utf8')
-}
-
-/** 按 UTF-8 字节预算截断，不切断码点；截断时补省略号，结果长度永远 ≤ 预算。 */
-export function truncateUtf8(text: string, maxBytes: number): string {
-  if (maxBytes <= 0) return ''
-  if (utf8Length(text) <= maxBytes) return text
-  const budget = maxBytes - utf8Length('…')
-  if (budget <= 0) return ''
-  let used = 0
-  let out = ''
-  for (const char of text) {
-    const bytes = utf8Length(char)
-    if (used + bytes > budget) break
-    out += char
-    used += bytes
-  }
-  return `${out}…`
 }

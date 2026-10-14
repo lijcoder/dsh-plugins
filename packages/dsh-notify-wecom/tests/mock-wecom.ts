@@ -85,7 +85,9 @@ export class MockWecomServer {
   async close(): Promise<void> {
     for (const waiter of this.waiters) clearTimeout(waiter.timer)
     this.waiters.clear()
-    this.socket?.close()
+    // 必须 terminate 掉所有还连着的客户端：wss.close() 会一直等客户端断开，
+    // 而测试失败时被测代码可能没跑到 dispose —— 那样整个测试进程就挂死了。
+    for (const client of this.wss.clients) client.terminate()
     this.socket = null
     await new Promise<void>((resolve) => this.wss.close(() => resolve()))
     await new Promise<void>((resolve) => this.httpServer.close(() => resolve()))

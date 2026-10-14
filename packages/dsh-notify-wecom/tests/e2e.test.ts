@@ -1,80 +1,37 @@
 /**
- * 端到端测试：起一个 Mock 企微长连接服务端，跑**真实的插件代码**，断言它发出的每一帧。
+ * 组合端到端测试：把组合包装的四行（接缝 + 企微通道 + 通知 + 命令）挂到一个**真实 cordis
+ * Context** 上，对着本地 Mock 企微长连接服务端跑，断言用户真正看到的那些帧。
  *
- * 两条路径都覆盖：
- * 1. 连接层——`WecomConnection` 直接对 Mock 说话，验证 SDK 协议帧（主动推送、被动回复）；
- * 2. 插件层——把整个插件挂到**真实 cordis Context** 上，走 inject / apply / provideWecom
- *    直到通知真的发出去。这条路径才是「少声明 inject」「effect 没释放连接」这类缺陷的
- *    守门人，手搓 Context 的单测看不见它们。
+ * 这是唯一能验证「四个包拼起来确实能工作」的地方：单包测试各自绿，不代表组合起来能跑通
+ * ——行序、通道注册、inject 满足、渲染串起来，全靠这条测试。
  *
  * 全程不需要真实凭证，也不联外网。
- *
- * 注意：Mock 只跟踪最新一条连接（忠实模拟企微「新连接顶掉旧连接」），
- * 因此两个 describe 不能同时持有连接——插件层的 before 会先停掉连接层那条。
  */
 import assert from 'node:assert/strict'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
 import { after, before, describe, test } from 'node:test'
+import { ImRegistry } from '@lijcoder/dsh-im'
+import * as CommandsPlugin from '@lijcoder/dsh-im-commands'
+import * as WecomPlugin from '@lijcoder/dsh-im-wecom'
+import * as NotifyPlugin from '@lijcoder/dsh-notify'
 import {
   assistantMessageEvent,
   createTestContext,
   emitAgentStatus,
   emitSessionEvent,
-  LogRecorder,
+  fakeAgent,
   titleEvent,
   topLevel,
   turnEndEvent,
   turnStartEvent,
   userMessageEvent,
 } from '@lijcoder/dsh-plugin-testkit'
-import * as NotifyPlugin from '../src/index.js'
-import { WecomCommandRouter } from '../src/commands.js'
-import { renderNotification, utf8Length } from '../src/notify.js'
-import { WecomConnection } from '../src/wecom.js'
-import { testConfig } from './fakes.js'
 import { MockWecomServer, type MockServerInfo } from './mock-wecom.js'
 
 const TARGET = 'mock-chatid'
-const logger = new LogRecorder()
-
-const style = {
-  heading: 'DSH 任务完成',
-  includeQuestion: true,
-  includeOutput: true,
-  maxContentBytes: 4_096,
-  maxQuestionBytes: 400,
-  maxOutputBytes: 2_000,
-}
-
-/** 一份内容足够长的样例通知，用来顺带验证 4096 字节截断。 */
-function renderSample(): string {
-  return renderNotification({
-    sessionId: 'sess-e2e-1',
-    title: '修复登录超时',
-    cwd: '/Users/lijie/work/ai/dsh-plugins',
-    outcome: { kind: 'completed', label: '成功', emoji: '✅' },
-    turn: 3,
-    startedAt: 1_000,
-    endedAt: 134_000,
-    question: '帮我把登录超时改大一点',
-    output: `已把登录超时从 3s 调到 30s。\n\n改动文件：\n- src/auth/timeout.ts\n\n${'补充说明。'.repeat(400)}`,
-  }, style)
-}
-
-/** 一份能连上 Mock 的插件配置。 */
-function mockConfig(info: MockServerInfo, overrides = {}): ReturnType<typeof testConfig> {
-  return testConfig({
-    wsUrl: info.wsUrl,
-    target: TARGET,
-    botId: 'mock-bot',
-    secret: 'mock-secret',
-    heartbeatInterval: 30_000,
-    maxReconnectAttempts: 1,
-    maxAuthFailureAttempts: 1,
-    requestTimeout: 5_000,
-    connectTimeoutMs: 5_000,
-    ...overrides,
-  })
-}
+/** 放在真实 home 下，好顺带验证路径缩写（`~`）这一路。 */
+const CWD = join(homedir(), 'work/demo')
 
 /** 等一个条件成立，用于断言「最终状态」而不是「恰好此刻的状态」。 */
 async function eventually(predicate: () => boolean, message: string, timeoutMs = 3_000): Promise<void> {
@@ -88,115 +45,50 @@ async function eventually(predicate: () => boolean, message: string, timeoutMs =
 
 let server: MockWecomServer
 let info: MockServerInfo
-let connection: WecomConnection
 
 before(async () => {
   server = new MockWecomServer()
   info = await server.start()
-  connection = new WecomConnection({
-    botId: 'mock-bot',
-    secret: 'mock-secret',
-    wsUrl: info.wsUrl,
-    heartbeatInterval: 30_000,
-    reconnectInterval: 1_000,
-    maxReconnectAttempts: 1,
-    maxAuthFailureAttempts: 1,
-    requestTimeout: 5_000,
-    connectTimeoutMs: 5_000,
-  }, logger)
-  connection.start()
-  await server.waitFor((item) => item.cmd === 'aibot_subscribe', { timeoutMs: 5_000 })
-
-  // 命令路由：收到文本消息 -> 路由器 -> 被动回复（不需要另配目标会话）
-  const router = new WecomCommandRouter()
-  router.register({ name: 'ping', summary: '连通性探测', run: (args) => `## 🏓 pong\n> ${args || 'ok'}` })
-  connection.onMessage((message) => {
-    void router.handle(message, 4_096)
-  })
 })
 
 after(async () => {
-  await connection.stop()
   await server.close()
 })
 
-describe('连接层：WecomConnection × Mock 企微长连接', () => {
-  test('sendMarkdown 发出 aibot_send_msg + markdown 载荷', async () => {
-    const content = renderSample()
-    assert.ok(utf8Length(content) <= 4_096, `内容必须在 4096 字节内，实际 ${utf8Length(content)}`)
+/** node:test 的用例上下文，只用到 after 注册清理。 */
+interface Cleanup {
+  after(fn: () => Promise<void>): void
+}
 
+/**
+ * 按组合包 cordis.patch.yml 的行序挂上四行。
+ *
+ * 顺序有语义：命令功能在挂载时就要在通道上订阅消息，所以通道必须排在它前面。
+ * 清理挂在 `t.after` 上——用例断言失败时也得跑到，否则长连接留着不放，
+ * 后面的 `server.close()` 会一直等它。
+ */
+async function compose(t: Cleanup) {
+  const h = createTestContext()
+  t.after(() => h.dispose())
+
+  const session = topLevel('sess-compose-1', CWD)
+  h.provide('agents', { roots: () => [fakeAgent(session, 'idle')] })
+  h.provide('sessionProjections', { stateOf: () => '修复登录超时' })
+
+  const sinceSubscribe = server.received.length
+  await h.mount(ImRegistry)
+  await h.mount(WecomPlugin, { botId: 'mock-bot', secret: 'mock-secret', wsUrl: info.wsUrl })
+  await h.mount(NotifyPlugin, { channel: 'wecom', target: TARGET })
+  await h.mount(CommandsPlugin, { channel: 'wecom' })
+  await server.waitFor((item) => item.cmd === 'aibot_subscribe', { timeoutMs: 5_000, since: sinceSubscribe })
+  return { h, session }
+}
+
+describe('组合包：企微通道 + 通知 + / 命令', () => {
+  test('回合结束 + agent 空闲 → 企微收到渲染好的 markdown 通知', async (t) => {
+    const { h, session } = await compose(t)
     const since = server.received.length
-    await connection.sendMarkdown(TARGET, content)
 
-    const frame = await server.waitFor((item) => item.cmd === 'aibot_send_msg', { timeoutMs: 5_000, since })
-
-    assert.equal(frame.body.chatid, TARGET)
-    assert.equal(frame.body.msgtype, 'markdown')
-    assert.equal(frame.headers.req_id.startsWith('aibot_send_msg'), true)
-    const sent = String(frame.body.markdown.content)
-    assert.match(sent, /## ✅ DSH 任务完成/)
-    assert.match(sent, /\*\*会话\*\*：修复登录超时/)
-    assert.match(sent, /\*\*目录\*\*：`~\/work\/ai\/dsh-plugins`/)
-    assert.match(sent, /\*\*状态\*\*：成功/)
-    assert.doesNotMatch(sent, /<font/)
-    assert.match(sent, /\*\*问题\*\*\n帮我把登录超时改大一点/)
-    assert.match(sent, /\*\*回复\*\*/)
-    assert.ok(utf8Length(sent) <= 4_096)
-  })
-
-  test('收到 /ping 后用同一条连接被动回复', async () => {
-    const since = server.received.length
-    const reqId = server.sendTextMessage('/ping 来自测试')
-
-    const frame = await server.waitFor(
-      (item) => item.cmd === 'aibot_respond_msg' && item.body?.stream?.finish === true,
-      { timeoutMs: 5_000, since },
-    )
-
-    // 被动回复沿用收到的 req_id（协议要求应答同一个回调）
-    assert.equal(frame.headers.req_id, reqId)
-    assert.match(String(frame.body.stream.content), /## 🏓 pong/)
-    assert.match(String(frame.body.stream.content), /来自测试/)
-
-    // 被动回复不影响同一条连接上的主动推送
-    await connection.sendMarkdown(TARGET, '## 收尾\n> 主动推送仍然可用')
-  })
-
-  test('普通聊天不回复', async () => {
-    const since = server.received.length
-    server.sendTextMessage('在吗')
-    await new Promise((resolve) => setTimeout(resolve, 200))
-    assert.equal(server.received.slice(since).some((item) => item.cmd === 'aibot_respond_msg'), false)
-  })
-
-  test('复用同一条连接再发一条', async () => {
-    const since = server.received.length
-    await connection.sendMarkdown(TARGET, '## 第二条\n> 复用连接')
-    const frame = await server.waitFor((item) => item.cmd === 'aibot_send_msg', { timeoutMs: 5_000, since })
-    assert.equal(frame.body.markdown.content, '## 第二条\n> 复用连接')
-  })
-})
-
-describe('插件层：真实 cordis Context 上跑整个插件', () => {
-  before(async () => {
-    // 释放掉连接层那条：Mock 只留最新连接，而插件的 provideWecom 会新建一条。
-    await connection.stop()
-  })
-
-  test('挂载 -> 回合结束 -> agent 空闲 -> 通知真的发到企微', async () => {
-    const h = createTestContext()
-    const session = topLevel('sess-plugin-1', '/work/demo')
-
-    // 插件 inject 的两个服务；少提供任何一个，挂载就会一直 PENDING。
-    h.provide('agents', { roots: () => [] })
-    h.provide('sessionProjections', { stateOf: () => '修复登录超时' })
-
-    // 这里跑的是 src/index.ts 的 apply：inject 解析 + provideWecom + registerNotify + registerCommands
-    const sinceSubscribe = server.received.length
-    await h.mount(NotifyPlugin, mockConfig(info))
-    await server.waitFor((item) => item.cmd === 'aibot_subscribe', { timeoutMs: 5_000, since: sinceSubscribe })
-
-    const since = server.received.length
     emitSessionEvent(h.ctx, session, turnStartEvent(1, 1_000))
     emitSessionEvent(h.ctx, session, titleEvent('修复登录超时'))
     emitSessionEvent(h.ctx, session, userMessageEvent('帮我把登录超时改大一点'))
@@ -206,50 +98,66 @@ describe('插件层：真实 cordis Context 上跑整个插件', () => {
 
     const frame = await server.waitFor((item) => item.cmd === 'aibot_send_msg', { timeoutMs: 5_000, since })
     assert.equal(frame.body.chatid, TARGET)
+    assert.equal(frame.body.msgtype, 'markdown')
     const sent = String(frame.body.markdown.content)
-    assert.match(sent, /\*\*会话\*\*：修复登录超时/)
-    assert.match(sent, /\*\*状态\*\*：成功/)
-    assert.match(sent, /已经改好了/)
-
-    // dispose 必须把长连接一起收掉：这条断言守住 ctx.effect 的释放路径
-    await h.dispose()
-    await eventually(() => !server.connected, '插件 dispose 后长连接应当已关闭')
+    assert.match(sent, /^## ✅ DSH 任务通知/)
+    assert.match(sent, /> \*\*会话\*\*：修复登录超时/)
+    assert.match(sent, /> \*\*状态\*\*：成功/)
+    assert.match(sent, /> \*\*目录\*\*：`~\/work\/demo`/)
+    assert.match(sent, /> \*\*Session\*\*：`sess-compose-1`/)
+    assert.match(sent, /\*\*问题\*\*\n帮我把登录超时改大一点/)
+    assert.match(sent, /\*\*回复\*\*\n已经改好了/)
+    assert.doesNotMatch(sent, /<font/)
   })
 
-  test('同一个回合重复空闲只发一次', async () => {
-    const h = createTestContext()
-    const session = topLevel('sess-plugin-2', '/work/demo')
-    h.provide('agents', { roots: () => [] })
-    h.provide('sessionProjections', { stateOf: () => undefined })
-
-    const sinceSubscribe = server.received.length
-    await h.mount(NotifyPlugin, mockConfig(info))
-    await server.waitFor((item) => item.cmd === 'aibot_subscribe', { timeoutMs: 5_000, since: sinceSubscribe })
-
+  test('企微里发 /list → 被动回复按目录分组的会话清单', async (t) => {
+    await compose(t)
     const since = server.received.length
-    emitSessionEvent(h.ctx, session, userMessageEvent('跑一下'))
-    emitSessionEvent(h.ctx, session, assistantMessageEvent('好', 1_100))
-    emitSessionEvent(h.ctx, session, turnEndEvent(1, 'completed', 1_200))
-    emitAgentStatus(h.ctx, { session }, 'idle')
-    emitAgentStatus(h.ctx, { session }, 'idle')
+    const reqId = server.sendTextMessage('/list')
 
-    await server.waitFor((item) => item.cmd === 'aibot_send_msg', { timeoutMs: 5_000, since })
-    await new Promise((resolve) => setTimeout(resolve, 200))
-    const pushes = server.received.slice(since).filter((item) => item.cmd === 'aibot_send_msg')
-    assert.equal(pushes.length, 1)
+    const frame = await server.waitFor(
+      (item) => item.cmd === 'aibot_respond_msg' && item.body?.stream?.finish === true,
+      { timeoutMs: 5_000, since },
+    )
 
-    await h.dispose()
-    await eventually(() => !server.connected, '插件 dispose 后长连接应当已关闭')
+    // 被动回复沿用收到的 req_id（协议要求应答同一个回调）
+    assert.equal(frame.headers.req_id, reqId)
+    const sent = String(frame.body.stream.content)
+    assert.match(sent, /^## 🖥 DSH 会话（1）/)
+    // 表格在这条通道上降级成「加粗路径 + 引用块」
+    assert.match(sent, /\*\*~\/work\/demo\*\*/)
+    assert.match(sent, /> 会话：修复登录超时 · 状态：💤 空闲 · sessionId：sess-compose-1/)
+    assert.doesNotMatch(sent, /\|/)
   })
 
-  test('inject 少一个服务时插件保持 PENDING，不会带病激活', async () => {
-    const h = createTestContext()
-    // 只提供 agents，故意不给 sessionProjections。
-    h.provide('agents', { roots: () => [] })
+  test('企微里发 /help → 列出命令；发普通聊天 → 不回复', async (t) => {
+    await compose(t)
 
-    const fiber = await h.mount(NotifyPlugin, mockConfig(info))
-    assert.notEqual(fiber.state, 'active', '注入未满足时不应激活')
+    const helpSince = server.received.length
+    server.sendTextMessage('/help')
+    const frame = await server.waitFor(
+      (item) => item.cmd === 'aibot_respond_msg' && item.body?.stream?.finish === true,
+      { timeoutMs: 5_000, since: helpSince },
+    )
+    const sent = String(frame.body.stream.content)
+    assert.match(sent, /^## 🤖 DSH 命令/)
+    assert.match(sent, /> \*\*\/list\*\*：列出当前活着的会话/)
+    assert.match(sent, /> \*\*\/help\*\*：列出所有命令/)
 
+    const chatSince = server.received.length
+    server.sendTextMessage('在吗')
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    assert.equal(
+      server.received.slice(chatSince).some((item) => item.cmd === 'aibot_respond_msg'),
+      false,
+      '普通聊天不该被回复',
+    )
+  })
+
+  test('dispose 之后长连接确实关掉了', async (t) => {
+    const { h } = await compose(t)
+    assert.equal(server.connected, true)
     await h.dispose()
+    await eventually(() => !server.connected, '组合包 dispose 后长连接应当已关闭')
   })
 })
