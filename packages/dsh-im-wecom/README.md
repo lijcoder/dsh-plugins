@@ -46,7 +46,7 @@ export WECOM_BOT_SECRET=...
 ## 能力声明
 
 ```ts
-{ richText: true, tables: true, maxContentBytes: 4096, proactive: true }
+{ richText: true, tables: true, maxContentBytes: 20480, proactive: true }
 ```
 
 `tables: true`：智能机器人这条 markdown 通道**支持标准 markdown 表格**。
@@ -75,11 +75,13 @@ export WECOM_BOT_SECRET=...
 | `maxAuthFailureAttempts` | `5` | `-1` 无限重试 |
 | `requestTimeout` | `10000` | 等待消息回执超时（也约束卸载时的收尾等待） |
 | `connectTimeoutMs` | `15000` | 等待认证成功上限，超时本条发送记失败 |
-| `maxContentBytes` | `4096` | 单条内容字节预算，渲染后兜底截断 |
+| `maxContentBytes` | `20480` | 单条内容字节预算，渲染后兜底截断 |
 
-> SDK 文档写的上限是「回复内容最长 20480 字节」（`replyStream`）。我们保守用 4096——
-> 主动推送（`sendMessage`）的上限 SDK 没写，而且 4096 是任何企微 markdown 场景都安全的值。
-> 想放宽就在配置里调 `maxContentBytes`，但别超过 20480。
+`20480` 是 SDK 文档给的 `replyStream` 上限（「回复内容最长不超过 20480 个字节」）。
+
+> 被动回复（`/list`、`/help`）走 `replyStream`，这个值是准的。
+> **主动推送（通知）走 `sendMessage`，SDK 和文档都没写它的上限**——如果哪天通知发送
+> 因为内容过长被拒（日志里一条 warn），把这个值调小即可。截断只影响长文，不影响投递。
 
 **这里没有任何通知策略**（发什么、给谁发、什么时候发）。那些属于功能插件——
 通道配置只回答「怎么连、怎么渲染」。

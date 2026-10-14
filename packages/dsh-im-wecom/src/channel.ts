@@ -8,7 +8,7 @@ export const WECOM = 'wecom'
 
 /** 通道配置 = 连接参数 + 通道自己的渲染上限。 */
 export interface WecomChannelOptions extends WecomOptions {
-  /** 单条内容的 UTF-8 字节预算（企微 markdown 上限 4096）。 */
+  /** 单条内容的 UTF-8 字节预算（`replyStream` 的文档上限是 20480 字节）。 */
   maxContentBytes: number
 }
 

@@ -15,7 +15,7 @@ export function shortenCwd(cwd: string, home: string = homedir()): string {
   return cwd.startsWith(`${home}/`) ? `~${cwd.slice(home.length)}` : cwd
 }
 
-/** UTF-8 字节长度：企微的 4096 限制是字节，不是字符。 */
+/** UTF-8 字节长度：企微的字节上限算的是字节，不是字符。 */
 export function utf8Length(text: string): number {
   return Buffer.byteLength(text, 'utf8')
 }

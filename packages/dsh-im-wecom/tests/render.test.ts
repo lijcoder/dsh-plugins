@@ -3,11 +3,11 @@ import { describe, test } from 'node:test'
 import type { ImCapabilities, ImDocument } from '@lijcoder/dsh-im'
 import { renderDocument, shortenCwd, truncateUtf8, utf8Length } from '../src/render.js'
 
-/** 企微真实能力：支持富文本，也支持标准 markdown 表格。 */
+/** 企微真实能力：支持富文本与标准 markdown 表格；字节上限取通道默认值。 */
 const WECOM: ImCapabilities = {
   richText: true,
   tables: true,
-  maxContentBytes: 4_096,
+  maxContentBytes: 20_480,
   proactive: true,
 }
 
@@ -135,9 +135,9 @@ describe('renderDocument', () => {
   test('整条内容受 maxContentBytes 约束，超长被截断', () => {
     const content = render({
       heading: '任务完成',
-      sections: [{ title: '回复', body: '补充说明。'.repeat(2_000) }],
+      sections: [{ title: '回复', body: '补充说明。'.repeat(5_000) }],
     })
-    assert.ok(utf8Length(content) <= 4_096, `实际 ${utf8Length(content)} 字节`)
+    assert.ok(utf8Length(content) <= 20_480, `实际 ${utf8Length(content)} 字节`)
     assert.ok(content.startsWith('## 任务完成'))
   })
 })

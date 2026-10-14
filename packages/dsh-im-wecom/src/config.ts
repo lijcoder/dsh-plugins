@@ -22,5 +22,5 @@ export const Config: Schema<Config> = Schema.object({
   maxAuthFailureAttempts: Schema.number().default(5).description('认证失败最大重试次数，-1 为无限'),
   requestTimeout: Schema.number().default(10_000).description('等待消息回执的超时（毫秒）'),
   connectTimeoutMs: Schema.number().default(15_000).description('等待认证成功的上限（毫秒）'),
-  maxContentBytes: Schema.number().default(4_096).description('单条内容 UTF-8 字节预算'),
+  maxContentBytes: Schema.number().default(20_480).description('单条内容 UTF-8 字节预算'),
 })
