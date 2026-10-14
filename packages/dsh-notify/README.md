@@ -16,15 +16,7 @@ dsh 功能：任务完成、或需要用户授权时，往你在用的即时通�
 
 ## 使用
 
-本包是纯库（不带 `dsh.bundle`），不能单独装；装组合包 [`@lijcoder/dsh-im-wecom-profile`](../dsh-im-wecom-profile)，其中通知那一行等价于：
-
-```yaml
-- id: notify
-  name: '@lijcoder/dsh-notify'
-  config:
-    channel: wecom
-    target: chatid或userid
-```
+本包是纯库（不带 `dsh.bundle`），不能单独装；装组合包 [`@lijcoder/dsh-im-wecom-profile`](../dsh-im-wecom-profile)，它把本包的 `channel` 钉成 `wecom`、`target` 指向通知目标（行与覆盖语义见[组合包 README](../dsh-im-wecom-profile)）。
 
 两类触发：
 
@@ -57,7 +49,7 @@ dsh 功能：任务完成、或需要用户授权时，往你在用的即时通�
 产出的是 `ImDocument`，位置和样式由通道决定：
 
 ```ts
-{ heading: '✅ DSH 任务完成',
+{ heading: '✅ DSH 任务通知',
   facts: [ { label: '会话', value: '修复登录超时' },
            { label: '状态', value: '成功' },
            { label: '目录', value: '/work/demo', code: true } ],
@@ -78,7 +70,7 @@ dsh 功能：任务完成、或需要用户授权时，往你在用的即时通�
 
 - 接缝契约：[`@lijcoder/dsh-im`](../dsh-im)
 - 安装与环境变量：[`@lijcoder/dsh-im-wecom-profile`](../dsh-im-wecom-profile)
-- 部署与限制的说明：[README](../../README.md)
+- 仓库取向与包表：[README](../../README.md)
 
 ## 已知限制与待办
 

@@ -45,7 +45,7 @@ packages/dsh-plugin-testkit/  只放「两个以上包真的用得上」的测�
 
 第 3 条决定了成员不能各自带 patch：同一个 row id 被插两次就是插件挂载两次，通知发两遍、企微两条长连接互相踢线。组合包的 patch 测试断言成员不带 `dsh.bundle`，从根上排除这个组合。
 
-代价要认：加平台 = 加一个组合包，而不是加一个可单装的插件。这是刻意的——profile 组合包表达的本来就是「一套配置」这个粒度。dsh 自己也只在替代型（`bundle/sdk-minimal` 写明 "does not layer over dsh-base"）与二选一型（`experimental/inspector` 的本地 overlay 对 `inspector-profile`）两种情形下让两个 patch 插同一个 id，绝不当叠加用。
+代价要认：加平台 = 加一个组合包，而不是加一个可单装的插件。这是刻意的——profile 组合包表达的本来就是「一套配置」这个粒度。dsh 自己也只在替代型（`packages/bundle/sdk-minimal` 写明 "does not layer over dsh-base"）与二选一型（`packages/experimental/inspector` 的本地 overlay 对 `inspector-profile`）两种情形下让两个 patch 插同一个 id，绝不当叠加用。
 
 ## 文档
 
@@ -91,7 +91,7 @@ dsh 的 [`loader`](https://github.com/deepseek-ai/deepseek-harness/blob/main/ven
 
 优先读状态服务与会话投影（`ctx.sessionProjections.stateOf(...)`、`ctx.agents.roots()`），事件只用来捕获状态迁移。
 
-理由：dsh 的 HMR 是配置层热重载、模块代码重启，插件随时可能在会话进行到一半时挂载。任何「从挂载起累积事件」的逻辑，在挂载晚于事件发生时必然失真——会话标题就是这么错的（拿到用户消息而不是标题）。
+理由：dsh 的 HMR 是配置层热重载、模块代码重启，插件随时可能在会话进行到一半时挂载。任何「从挂载起累积事件」的逻辑，在挂载晚于事件发生时必然失真。
 
 ## 构建顺序
 

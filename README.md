@@ -25,7 +25,7 @@ dsh plugin --profile web add @lijcoder/dsh-im-wecom-profile
 
 本地 checkout 把包名换成路径 `./packages/dsh-im-wecom-profile`（先 `pnpm build`）。装完重启该 profile 的进程——插件模块代码不参与热重载。
 
-成员包不能单独装：`dsh plugin add` 一个不带 `dsh.bundle` 的包只把它作为普通依赖放进 profile，打一句 `declares no dsh.bundle` 的警告，不激活任何行。
+成员包不能单独装：`dsh plugin add` 一个不带 `dsh.bundle` 的包不激活任何行。原因见 [AGENTS.md](./AGENTS.md) 的「安装入口只能是组合包」。
 
 ### 环境变量
 

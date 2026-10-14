@@ -4,7 +4,7 @@
 # 只会作为普通依赖躺在 profile 里、不激活任何行——因为 cordis 里「激活」的单位是
 # bundle 的 patch，不是包。所以装这套就用本包，别去单独 add 成员。
 #
-# 缺少配置时**四行一起停用**（一个开关管整条链路），所以装完没配好不会让 profile 起不来：
+# 缺少配置时**除 im 接缝行外的三行一起停用**（一个开关管整条链路），所以装完没配好不会让 profile 起不来：
 #
 #   export WECOM_BOT_ID=...
 #   export WECOM_BOT_SECRET=...

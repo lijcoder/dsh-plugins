@@ -81,7 +81,7 @@ dsh-im-commands          registerChannel()         dsh-im-feishu
 
 所以「这个平台支不支持表格」是声明而不是猜测：通道通过 `ImCapabilities` 说明能力，不支持的形态由通道自己降级；功能侧不要写 `if (platform === 'wecom')`。
 
-`ImDocument` 只有 heading / facts / sections / tables / footer。表格是复数（`tables: ImTable[]`）且每张可以带 `title`：分组维度（工作目录、批次……）写成表标题，而不是在一列里塞分组标记——后者每个消费方都得照抄那条约定，还白占一列宽度。图片、按钮、卡片动作等有真实需求再加。
+`ImDocument` 只有 heading / facts / sections / tables / footer。表格是复数（`tables: ImTable[]`）且每张可以带 `title`：分组维度写成表标题，不用在一列里塞分组标记。图片、按钮、卡片动作等有真实需求再加。
 
 </details>
 

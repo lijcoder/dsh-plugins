@@ -30,7 +30,7 @@ await h.dispose()                        // 等完全停稳
 
 `mount()` 返回后插件不一定已激活：注入不满足时 fiber 停在 PENDING（`fiber.state === 0`），`apply` 不执行。所以「少声明 inject」会在用例里表现为什么都没发生，而不是等到运行时才炸。
 
-下列是全部导出（`src/index.ts` 为准）：
+下列是全部运行期导出（`src/index.ts` 为准）；另有类型导出 `TestContext`、`FakeAgent`、`PatchEntry`：
 
 | 导出 | 用途 |
 | --- | --- |

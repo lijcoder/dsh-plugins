@@ -91,7 +91,7 @@ DSH 正在等你的授权，请回到会话里处理。
 
 ## 配置
 
-缺少配置时四行一起停用（一个开关管整条链路），所以装完没配好不会让 profile 起不来：
+缺少配置时除 `im` 接缝行外的三行一起停用（一个开关管整条链路），所以装完没配好不会让 profile 起不来：
 
 ```sh
 export WECOM_BOT_ID=...
@@ -99,7 +99,7 @@ export WECOM_BOT_SECRET=...
 export IM_NOTIFY_TARGET=chatid或userid
 ```
 
-这些名字也能写进 `<启动目录>/.env` 或 `$DSH_HOME/.env`，两者都会生效；不能以 `DSH_` / `XDG_` / `DYLD_` / `BASH_FUNC_` 开头，否则会让 dsh 报错退出。
+这些名字也能写进 `<启动目录>/.env` 或 `$DSH_HOME/.env`，两者都会生效。变量名不能以保留前缀（`DSH_` / `XDG_` / `DYLD_` / `BASH_FUNC_`）开头，否则会让 dsh 报错退出。
 
 想写死凭证或改默认值，在自己 profile 的 `cordis.patch.yml` 里按 id 覆盖：
 
@@ -145,6 +145,6 @@ export IM_NOTIFY_TARGET=chatid或userid
 
 - 同一个 botId 的长连接只能有一个：企微会把旧连接踢掉。别让第二个进程或第二个 profile 用同一个 `botId`。
 - 授权通知只是提醒，不能在企微里批准，得回会话处理。
-- markdown 是这条通道的子集：支持 `##`、`**加粗**`、`` `行内代码` ``、`>` 引用块、标准 markdown 表格；不支持 `<font color>`，所以状态只用 emoji 表达。
+- 状态只用 emoji 表达、表格能画到什么程度，取决于这条通道的 markdown 子集（见[通道 README](../dsh-im-wecom)）。
 - 插件加载前已结束的回合不会补发通知。
 - `/list` 只覆盖当前进程内存里的会话：没加载进内存的历史会话、其它进程看不到。

@@ -4,7 +4,7 @@
 
 [`@lijcoder/dsh-im`](../dsh-im) 的通道实现：企业微信智能机器人（aibot）长连接。
 
-只做三件事：建连、把中立的 `ImDocument` 渲染成企微 markdown、把收到的帧归一化成 `ImMessage`。认证、重连、超时、回执、心跳由内部 SDK 兜住，消费方不碰。
+只做三件事：建连、把中立的 `ImDocument` 渲染成企微 markdown、把收到的帧归一化成 `ImInbound`（注册表补上 `channel` 后才是 `ImMessage`）。认证、重连、超时、回执、心跳由内部 SDK 兜住，消费方不碰。
 
 ## 目录
 
@@ -16,21 +16,13 @@
 
 ## 使用
 
-本包是纯库（不带 `dsh.bundle`），不能单独装——`dsh plugin add` 一个纯库只把它作为普通依赖放进 profile，不激活任何行。要装就装组合包：
+本包是纯库（不带 `dsh.bundle`），不能单独装；装组合包 [`@lijcoder/dsh-im-wecom-profile`](../dsh-im-wecom-profile)：
 
 ```sh
 dsh plugin --profile web add @lijcoder/dsh-im-wecom-profile
 ```
 
-组合包按「接缝 → 通道 → 功能」插好四行，并把本包设为依赖；它给本包插的那一行等价于：
-
-```yaml
-- id: im-wecom
-  name: '@lijcoder/dsh-im-wecom'
-  config:
-    botId: ...
-    secret: ...
-```
+组合包按「接缝 → 通道 → 功能」插好四行，并把本包设为依赖。它给本包插的行长什么样、怎么按 `id: im-wecom` 覆盖，见[组合包 README](../dsh-im-wecom-profile)。
 
 凭证从环境变量读，缺则那一行停用，不会让 profile 起不来：
 
@@ -38,8 +30,6 @@ dsh plugin --profile web add @lijcoder/dsh-im-wecom-profile
 export WECOM_BOT_ID=...
 export WECOM_BOT_SECRET=...
 ```
-
-想写死凭证或改默认值，在自己 profile 的 `cordis.patch.yml` 里按 `id: im-wecom` 覆盖（补丁整块替换 `config`，要写全需要的键）。
 
 ## 配置
 
@@ -66,7 +56,7 @@ export WECOM_BOT_SECRET=...
 ctx.im.registerChannel('wecom', channel)
         │
         ├─ send(target, document)  ──► renderDocument() ──► aibot_send_msg（主动推送）
-        └─ onMessage(handler)      ◄── aibot_msg_callback ──► ImMessage
+        └─ onMessage(handler)      ◄── aibot_msg_callback ──► ImInbound
                                                              └─ reply(document) → aibot_respond_msg
 ```
 
@@ -84,7 +74,7 @@ ctx.im.registerChannel('wecom', channel)
 | `tables` | 表格走标准 markdown 表格，还是降级成「加粗表标题 + 逐行引用块」 |
 | `maxContentBytes` | 渲染完成后兜底截断整条内容 |
 
-`tables: true` 有依据：aibot 这条 markdown 通道支持标准 markdown 表格。已知不支持的只有 `<font color>`（会被原样打出），所以状态只用 emoji 表达。`ImTable.title`（例如工作目录）在支持表格时单独占一行加粗，在降级通道上当引用块上方的小标题。
+aibot 的 markdown 通道支持标准 markdown 表格。已知不支持的只有 `<font color>`（会被原样打出），所以状态只用 emoji 表达。`ImTable.title`（例如工作目录）在支持表格时单独占一行加粗，在降级通道上当引用块上方的小标题。
 
 功能插件只管说「要几张几列表、每张叫什么」，怎么摆由这里决定，所以换一个声明 `tables: false` 的通道（纯文本 webhook 之类）时功能代码一行不用改。
 
@@ -103,6 +93,6 @@ ctx.im.registerChannel('wecom', channel)
 ## 已知限制与待办
 
 - 同一个 botId 的长连接只能有一个：新连接会把旧的顶掉（企微行为）。别让第二个进程或第二个 profile 用同一个 `botId`。
-- 发送不做重试与投递保证：失败抛给调用方，由功能侧决定记日志还是重试。
+- `send` / `reply` 失败直接抛给调用方，不重试、不排队；重试策略由功能侧决定。
 - 渲染只按 `capabilities` 决定形态，不因为「这条消息是表格」报错——降级比丢失好。
 - 表格与 20480 字节在真实企微客户端的表现未经人工核对，只有 Mock 服务端上的帧断言。
