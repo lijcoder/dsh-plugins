@@ -1,0 +1,22 @@
+# @lijcoder/dsh-im-wecom 的 bundle 层：挂上企微通道。
+#
+# 凭证缺失时这一行停用，不会让 profile 起不来：
+#
+#   export WECOM_BOT_ID=...
+#   export WECOM_BOT_SECRET=...
+#
+# 想写死凭证 / 改默认值，在自己 profile 的 cordis.patch.yml 里按 id 覆盖。
+# 注意两点：
+#   1. 补丁整块替换 config，覆盖时要写全该行需要的键；
+#   2. 本层的 disabled 会继续生效（补丁不写 disabled 就沿用），
+#      所以不靠环境变量启用时必须显式写 disabled: false。
+#
+# 这一行需要 `im` 接缝（@lijcoder/dsh-im）已挂载；没装的话插件会一直 PENDING
+# 而不是报错，所以请两个一起装。
+- insert:
+    - id: im-wecom
+      name: '@lijcoder/dsh-im-wecom'
+      disabled: !!js "!(process.env.WECOM_BOT_ID && process.env.WECOM_BOT_SECRET)"
+      config:
+        botId: !!js process.env.WECOM_BOT_ID
+        secret: !!js process.env.WECOM_BOT_SECRET

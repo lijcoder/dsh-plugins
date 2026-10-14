@@ -1,0 +1,9 @@
+# @lijcoder/dsh-im 的 bundle 层：挂上能力接缝本身（提供 `ctx.im`）。
+#
+# 它不含任何实现，所以单装这一行什么都不发生——还要装至少一个通道包
+# （如 @lijcoder/dsh-im-wecom）和想用的功能包（如 @lijcoder/dsh-notify）。
+#
+# 一次装齐的写法见仓库根 README。
+- insert:
+    - id: im
+      name: '@lijcoder/dsh-im'

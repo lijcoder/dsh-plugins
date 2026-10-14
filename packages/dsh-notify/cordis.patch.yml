@@ -1,0 +1,20 @@
+# @lijcoder/dsh-notify 的 bundle 层：挂上通知功能。
+#
+# 缺 target 时这一行停用（通知本来也没地方发），所以装完没配好不会让 profile 起不来：
+#
+#   export DSH_NOTIFY_TARGET=chatid或userid
+#   export DSH_NOTIFY_CHANNEL=wecom      # 可省略；装了多个通道时必填
+#
+# `channel` 省略时由接缝自动选中**唯一**的通道；装了两个以上通道而没写 channel，
+# 发送时只会记一条 warn（不会让对话炸掉），但通知发不出去。
+#
+# 想改默认值（标题、只通知完成了的回合……），在自己 profile 的 cordis.patch.yml 里
+# 按 id 覆盖。注意：补丁整块替换 config，覆盖时本行的 disabled 会继续生效，
+# 不靠环境变量启用时要显式写 disabled: false。
+- insert:
+    - id: notify
+      name: '@lijcoder/dsh-notify'
+      disabled: !!js "!process.env.DSH_NOTIFY_TARGET"
+      config:
+        target: !!js process.env.DSH_NOTIFY_TARGET
+        channel: !!js process.env.DSH_NOTIFY_CHANNEL

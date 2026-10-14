@@ -96,21 +96,42 @@ importers:
       '@deepseek-ai/cordis':
         specifier: catalog:dsh
         version: 4.0.5-alpha.1
+      '@deepseek-ai/dsh-agent':
+        specifier: catalog:dsh
+        version: 0.2.1-alpha.2(@deepseek-ai/cordis@4.0.5-alpha.1)(@deepseek-ai/dsh-llm@0.2.1-alpha.2(@deepseek-ai/cordis@4.0.5-alpha.1))(@deepseek-ai/dsh-scope@0.2.1-alpha.2(@deepseek-ai/cordis@4.0.5-alpha.1))(@deepseek-ai/dsh-session-projection@0.2.1-alpha.2(@deepseek-ai/cordis@4.0.5-alpha.1)(@deepseek-ai/dsh-session@0.2.1-alpha.2(@deepseek-ai/cordis@4.0.5-alpha.1)(@deepseek-ai/dsh-scope@0.2.1-alpha.2(@deepseek-ai/cordis@4.0.5-alpha.1))))(@deepseek-ai/dsh-session@0.2.1-alpha.2(@deepseek-ai/cordis@4.0.5-alpha.1)(@deepseek-ai/dsh-scope@0.2.1-alpha.2(@deepseek-ai/cordis@4.0.5-alpha.1)))(@deepseek-ai/dsh-system-prompt@0.2.1-alpha.2(@deepseek-ai/cordis@4.0.5-alpha.1)(@deepseek-ai/dsh-llm@0.2.1-alpha.2(@deepseek-ai/cordis@4.0.5-alpha.1))(@deepseek-ai/dsh-scope@0.2.1-alpha.2(@deepseek-ai/cordis@4.0.5-alpha.1)))(@deepseek-ai/dsh-typert-protocol@0.2.1-alpha.2(@deepseek-ai/cordis@4.0.5-alpha.1))(@deepseek-ai/dsh-util-values@0.2.1-alpha.2(@deepseek-ai/cordis@4.0.5-alpha.1))
+      '@deepseek-ai/dsh-session':
+        specifier: catalog:dsh
+        version: 0.2.1-alpha.2(@deepseek-ai/cordis@4.0.5-alpha.1)(@deepseek-ai/dsh-scope@0.2.1-alpha.2(@deepseek-ai/cordis@4.0.5-alpha.1))
       '@deepseek-ai/schemastery':
         specifier: catalog:dsh
         version: 3.18.4
       '@lijcoder/dsh-im':
         specifier: workspace:*
         version: link:../dsh-im
+      '@lijcoder/dsh-im-commands':
+        specifier: workspace:*
+        version: link:../dsh-im-commands
+      '@lijcoder/dsh-notify':
+        specifier: workspace:*
+        version: link:../dsh-notify
+      '@lijcoder/dsh-plugin-testkit':
+        specifier: workspace:*
+        version: link:../dsh-plugin-testkit
       '@types/node':
         specifier: ^22.20.1
         version: 22.20.5
+      '@types/ws':
+        specifier: ^8.18.2
+        version: 8.18.2
       tsx:
         specifier: ^4.23.15
         version: 4.23.15
       typescript:
         specifier: ^7.0.2
         version: 7.0.2
+      ws:
+        specifier: ^8.22.0
+        version: 8.22.0
 
   packages/dsh-notify:
     dependencies:
@@ -151,58 +172,6 @@ importers:
       typescript:
         specifier: ^7.0.2
         version: 7.0.2
-
-  packages/dsh-notify-wecom:
-    dependencies:
-      '@lijcoder/dsh-im':
-        specifier: workspace:^
-        version: link:../dsh-im
-      '@lijcoder/dsh-im-commands':
-        specifier: workspace:^
-        version: link:../dsh-im-commands
-      '@lijcoder/dsh-im-wecom':
-        specifier: workspace:^
-        version: link:../dsh-im-wecom
-      '@lijcoder/dsh-notify':
-        specifier: workspace:^
-        version: link:../dsh-notify
-    devDependencies:
-      '@deepseek-ai/cordis':
-        specifier: catalog:dsh
-        version: 4.0.5-alpha.1
-      '@deepseek-ai/dsh-agent':
-        specifier: catalog:dsh
-        version: 0.2.1-alpha.2(@deepseek-ai/cordis@4.0.5-alpha.1)(@deepseek-ai/dsh-llm@0.2.1-alpha.2(@deepseek-ai/cordis@4.0.5-alpha.1))(@deepseek-ai/dsh-scope@0.2.1-alpha.2(@deepseek-ai/cordis@4.0.5-alpha.1))(@deepseek-ai/dsh-session-projection@0.2.1-alpha.2(@deepseek-ai/cordis@4.0.5-alpha.1)(@deepseek-ai/dsh-session@0.2.1-alpha.2(@deepseek-ai/cordis@4.0.5-alpha.1)(@deepseek-ai/dsh-scope@0.2.1-alpha.2(@deepseek-ai/cordis@4.0.5-alpha.1))))(@deepseek-ai/dsh-session@0.2.1-alpha.2(@deepseek-ai/cordis@4.0.5-alpha.1)(@deepseek-ai/dsh-scope@0.2.1-alpha.2(@deepseek-ai/cordis@4.0.5-alpha.1)))(@deepseek-ai/dsh-system-prompt@0.2.1-alpha.2(@deepseek-ai/cordis@4.0.5-alpha.1)(@deepseek-ai/dsh-llm@0.2.1-alpha.2(@deepseek-ai/cordis@4.0.5-alpha.1))(@deepseek-ai/dsh-scope@0.2.1-alpha.2(@deepseek-ai/cordis@4.0.5-alpha.1)))(@deepseek-ai/dsh-typert-protocol@0.2.1-alpha.2(@deepseek-ai/cordis@4.0.5-alpha.1))(@deepseek-ai/dsh-util-values@0.2.1-alpha.2(@deepseek-ai/cordis@4.0.5-alpha.1))
-      '@deepseek-ai/dsh-session':
-        specifier: catalog:dsh
-        version: 0.2.1-alpha.2(@deepseek-ai/cordis@4.0.5-alpha.1)(@deepseek-ai/dsh-scope@0.2.1-alpha.2(@deepseek-ai/cordis@4.0.5-alpha.1))
-      '@deepseek-ai/dsh-session-projection':
-        specifier: catalog:dsh
-        version: 0.2.1-alpha.2(@deepseek-ai/cordis@4.0.5-alpha.1)(@deepseek-ai/dsh-session@0.2.1-alpha.2(@deepseek-ai/cordis@4.0.5-alpha.1)(@deepseek-ai/dsh-scope@0.2.1-alpha.2(@deepseek-ai/cordis@4.0.5-alpha.1)))
-      '@deepseek-ai/dsh-session-title':
-        specifier: catalog:dsh
-        version: 0.2.1-alpha.2(e1407eaec8b8581ae9ff002012c5141b)
-      '@deepseek-ai/dsh-user-approval':
-        specifier: catalog:dsh
-        version: 0.2.1-alpha.2(c5c186e54030e7e2ceabca29af67b99a)
-      '@lijcoder/dsh-plugin-testkit':
-        specifier: workspace:*
-        version: link:../dsh-plugin-testkit
-      '@types/node':
-        specifier: ^22.20.1
-        version: 22.20.5
-      '@types/ws':
-        specifier: ^8.18.2
-        version: 8.18.2
-      tsx:
-        specifier: ^4.23.15
-        version: 4.23.15
-      typescript:
-        specifier: ^7.0.2
-        version: 7.0.2
-      ws:
-        specifier: ^8.22.0
-        version: 8.22.0
 
   packages/dsh-plugin-testkit:
     devDependencies:

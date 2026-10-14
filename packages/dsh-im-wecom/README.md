@@ -16,8 +16,23 @@ ctx.im.registerChannel('wecom', channel)
 ## 用法
 
 通道是**实现方**，自己不发通知；装上它，再装一个功能插件（如
-[`@lijcoder/dsh-notify`](../dsh-notify)）。或者直接装组合包
-[`@lijcoder/dsh-notify-wecom`](../dsh-notify-wecom)，一次配齐。
+[`@lijcoder/dsh-notify`](../dsh-notify)）。三者都要有 `im` 接缝：
+
+```sh
+dsh plugin --profile web add \
+  @lijcoder/dsh-im @lijcoder/dsh-im-wecom @lijcoder/dsh-notify
+```
+
+本地 checkout 时把包名换成 `./packages/<包名>` 路径，顺序照上面即可。
+
+凭证从环境变量读（缺则这一行停用，不会让 profile 起不来）：
+
+```sh
+export WECOM_BOT_ID=...
+export WECOM_BOT_SECRET=...
+```
+
+等价于 profile 里这样一行：
 
 ```yaml
 - id: im-wecom

@@ -1,9 +1,12 @@
 /**
- * 组合端到端测试：把组合包装的四行（接缝 + 企微通道 + 通知 + 命令）挂到一个**真实 cordis
- * Context** 上，对着本地 Mock 企微长连接服务端跑，断言用户真正看到的那些帧。
+ * 跨包端到端测试：把四行（接缝 + 企微通道 + 通知 + 命令）挂到同一个**真实 cordis Context**
+ * 上，对着本地 Mock 企微长连接服务端跑，断言用户真正看到的那些帧。
  *
- * 这是唯一能验证「四个包拼起来确实能工作」的地方：单包测试各自绿，不代表组合起来能跑通
+ * 这是唯一能验证「几个包拼起来确实能工作」的地方：单包测试各自绿，不代表组合起来能跑通
  * ——行序、通道注册、inject 满足、渲染串起来，全靠这条测试。
+ *
+ * 为什么放在通道包里：Mock 服务端实现的是**企微协议**，它天然属于通道；跨包用例需要同时
+ * 依赖通知与命令包，放在这里只多两个 devDependency，比为此单养一个组合包便宜。
  *
  * 全程不需要真实凭证，也不联外网。
  */
@@ -13,8 +16,8 @@ import { join } from 'node:path'
 import { after, before, describe, test } from 'node:test'
 import { ImRegistry } from '@lijcoder/dsh-im'
 import * as CommandsPlugin from '@lijcoder/dsh-im-commands'
-import * as WecomPlugin from '@lijcoder/dsh-im-wecom'
 import * as NotifyPlugin from '@lijcoder/dsh-notify'
+import * as WecomPlugin from '../src/index.js'
 import {
   assistantMessageEvent,
   createTestContext,
@@ -61,7 +64,7 @@ interface Cleanup {
 }
 
 /**
- * 按组合包 cordis.patch.yml 的行序挂上四行。
+ * 按「接缝 → 通道 → 功能」的顺序挂上四行（多包 add 时也是这个顺序）。
  *
  * 顺序有语义：命令功能在挂载时就要在通道上订阅消息，所以通道必须排在它前面。
  * 清理挂在 `t.after` 上——用例断言失败时也得跑到，否则长连接留着不放，
@@ -84,7 +87,7 @@ async function compose(t: Cleanup) {
   return { h, session }
 }
 
-describe('组合包：企微通道 + 通知 + / 命令', () => {
+describe('跨包：企微通道 + 通知 + / 命令', () => {
   test('回合结束 + agent 空闲 → 企微收到渲染好的 markdown 通知', async (t) => {
     const { h, session } = await compose(t)
     const since = server.received.length
@@ -158,6 +161,6 @@ describe('组合包：企微通道 + 通知 + / 命令', () => {
     const { h } = await compose(t)
     assert.equal(server.connected, true)
     await h.dispose()
-    await eventually(() => !server.connected, '组合包 dispose 后长连接应当已关闭')
+    await eventually(() => !server.connected, '全部 dispose 后长连接应当已关闭')
   })
 })

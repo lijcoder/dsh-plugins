@@ -17,16 +17,27 @@ packages/dsh-plugin-testkit/  只放「两个以上插件真的用得上」的�
 包目录名 = npm 包名（含 scope 去掉 `@scope/` 前缀后仍保留 `dsh-` 前缀），
 这样 `pnpm --filter` 和目录能对上。
 
-### 可替换能力：接缝 / 实现 / 功能 / 组合包
+### 可替换能力：接缝 / 实现 / 功能
 
-一个「有多个实现方」的能力分四层，照 dsh 自己的 `ctx.llm` / `ctx.browserUse` 来：
+一个「有多个实现方」的能力分三层，照 dsh 自己的 `ctx.llm` / `ctx.browserUse` 来：
 
 | 层 | 职责 | 例子 |
 | --- | --- | --- |
 | 接缝 | 定义契约、Context key 与注册表；**不含任何实现** | `dsh-im`（`ctx.im`） |
 | 实现 | 实现契约的一个具体平台/机制，注册进接缝 | `dsh-im-wecom` |
 | 功能 | 只依赖接缝，产出中立数据结构，不关心实现是谁 | `dsh-notify`、`dsh-im-commands` |
-| 组合包 | 自己不含代码，只有 `cordis.patch.yml`，一行装齐 | `dsh-notify-wecom` |
+
+**不要做组合包。** 实测过三条 dsh 行为（2026-10，dsh 0.2.1-alpha.2）：
+
+1. `dsh plugin add a b c` 会把三个包**全部**追加进 `dsh.profile.bundles` ——「一次装齐」用
+   多包 add 就行，不需要组合包；
+2. 只 add 一个包时，**它的 bundle 依赖不会被激活**（meta 包同样什么都不做，只打一句
+   「declares no dsh.bundle」的警告）；
+3. 两个 bundle 各 `insert` **同一个 row id** 会得到**两行**，不报错也不去重 ——
+   插件会被挂载两次（企微就是两条连接互相踢线）。
+
+所以组合包只有两种结局：patch 插重复行（3 的坑），或者什么都不激活（2 的坑）。
+要「一次装齐」就在 README 里写多包 add 命令。
 
 两条硬规矩：
 
@@ -35,8 +46,8 @@ packages/dsh-plugin-testkit/  只放「两个以上插件真的用得上」的�
 - **渲染归实现，内容归功能**。功能产出结构（`ImDocument`），排版与平台限制由实现处理。
   能力用声明表达（`capabilities.tables`），实现自己降级；不要写成 `if (platform === 'wecom')`。
 
-组合包必须关心**行序**：需要接缝 → 实现 → 功能。功能若在挂载时就要订阅（如命令功能
-必须先在通道上 `onMessage`），实现行必须排在它前面，否则启动期报错。
+**行序有语义**：接缝 → 实现 → 功能。功能若在挂载时就要订阅（如命令功能必须先在通道上
+`onMessage`），实现包必须排在它前面，用户在 README 里的 add 顺序也要照此。
 
 ### 构建顺序
 
@@ -81,7 +92,7 @@ dsh 在 alpha，且 npm 上 `latest` 停在 rc 线。
 | --- | --- | --- |
 | 纯函数单测 | `tests/*.test.ts` | 直接调 `renderDocument`、`parseCommand`、`notificationDocument` 这类函数，不涉及 cordis |
 | 集成 | 同上 | **`@lijcoder/dsh-plugin-testkit` 的真实 cordis Context** + 假的通道/服务替身 |
-| 组合 e2e | 组合包的 `tests/` | 多个包挂在同一个真实 Context 上，对着本地 Mock 服务端断言用户看到的帧 |
+| 跨包 e2e | 通道包的 `tests/` | 多个包挂在同一个真实 Context 上，对着本地 Mock 服务端断言用户看到的帧 |
 
 **没有「手搓 Context 直接戳事件处理器」这一层。** 试过，代价是漏掉了真缺陷：
 手搓替身绕过注入解析、`ctx.effect` 清理和事件分发，于是「插件少声明 inject」
@@ -92,12 +103,13 @@ dsh 在 alpha，且 npm 上 `latest` 停在 rc 线。
 3. `dispose()` 之后外部资源确实关掉了。
 
 外部协议（企微长连接之类）用一个本地 Mock 服务端测，见
-`packages/dsh-notify-wecom/tests/mock-wecom.ts`：不需要凭证、不联外网、能断言每一帧。
+`packages/dsh-im-wecom/tests/mock-wecom.ts`：不需要凭证、不联外网、能断言每一帧。
 Mock 的 `close()` 必须 `terminate()` 掉还连着的客户端，否则用例失败没跑到 dispose 时，
 整个测试进程会卡在 `wss.close()` 上。
 
-组合层要单独测：**单包各自绿不代表拼起来能跑通**——行序、通道注册、inject 满足、
-渲染串起来，只有组合 e2e 能验证。
+跨包层要单独测：**单包各自绿不代表拼起来能跑通**——行序、通道注册、inject 满足、
+渲染串起来，只有跨包 e2e 能验证。放在通道包里（Mock 协议属于通道），
+靠 devDependencies 引另外两个包，比为此单养一个组合包便宜。
 
 ## 安装与验证
 

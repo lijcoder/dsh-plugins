@@ -3,7 +3,7 @@
 DeepSeek Harness 功能：**任务完成或需要授权时，往你在用的即时通讯软件推一条通知。**
 
 与平台无关——它只依赖接缝 [`@lijcoder/dsh-im`](../dsh-im)，具体发给企业微信还是飞书，
-由装了哪个通道包决定（见 [组合包](../dsh-notify-wecom)）。
+由装了哪个通道包决定（企微见 [`@lijcoder/dsh-im-wecom`](../dsh-im-wecom)，飞书待做）。
 
 ## 两类触发
 
