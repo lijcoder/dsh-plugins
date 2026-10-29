@@ -24,6 +24,7 @@ import {
   emitAgentStatus,
   emitSessionEvent,
   fakeAgent,
+  requestUserQuestions,
   titleEvent,
   topLevel,
   turnEndEvent,
@@ -112,6 +113,34 @@ describe('跨包：企微通道 + 通知 + / 命令', () => {
     assert.match(sent, /\*\*问题\*\*\n帮我把登录超时改大一点/)
     assert.match(sent, /\*\*回复\*\*\n已经改好了/)
     assert.doesNotMatch(sent, /<font/)
+  })
+
+  test('工具提问 → 企微收到渲染好的题干与选项', async (t) => {
+    const { h, session } = await compose(t)
+    const since = server.received.length
+
+    await requestUserQuestions(
+      h.ctx,
+      {
+        agent: { session },
+        questions: [{
+          id: 'q1',
+          question: '先改哪个？',
+          options: [{ label: 'A', description: '改动小' }, { label: 'B' }],
+        }],
+      },
+      async () => ({ answers: [] }),
+    )
+
+    const frame = await server.waitFor((item) => item.cmd === 'aibot_send_msg', { timeoutMs: 5_000, since })
+    assert.equal(frame.body.chatid, TARGET)
+    assert.equal(frame.body.msgtype, 'markdown')
+    const sent = String(frame.body.markdown.content)
+    assert.match(sent, /^## ❓ DSH 提问通知/)
+    assert.match(sent, /> \*\*会话\*\*：修复登录超时/)
+    assert.match(sent, /> \*\*Session\*\*：`sess-compose-1`/)
+    assert.match(sent, /\*\*问题\*\*\n先改哪个？\n选项：\n1. A：改动小\n2. B/)
+    assert.match(sent, /DSH 正在等你的回答/)
   })
 
   test('企微里发 /list → 被动回复按目录分组的会话清单（一个目录一张表）', async (t) => {

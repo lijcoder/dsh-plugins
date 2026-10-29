@@ -4,6 +4,7 @@ import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-session-projection'
 import type {} from '@deepseek-ai/dsh-session-title'
 import type {} from '@deepseek-ai/dsh-user-approval'
+import type { AskUserQuestionItem } from '@deepseek-ai/dsh-user-questions'
 import { truncateUtf8, type ImDocument, type ImFact, type ImSection } from '@lijcoder/dsh-im'
 import type { Config } from './config.js'
 
@@ -62,6 +63,30 @@ export interface ApprovalNeeded extends SessionFacts {
   readonly toolName: string
   /** 问询方给出的人话解释。 */
   readonly reason?: string
+}
+
+/** 问题里的一个选项。 */
+export interface AskedOption {
+  readonly label: string
+  readonly description?: string
+}
+
+/** 一条待你回答的问题，已经从事件里摘出通知要用的那部分。 */
+export interface AskedQuestion {
+  /** 段落小标题：调用方给了 `header` 就用它，否则按「问题 / 问题 N」编号。 */
+  readonly title: string
+  readonly question: string
+  /** 补充说明；plan-review 这类 intent 的整份计划也在这里，通知里只带前 500 字。 */
+  readonly detail?: string
+  readonly options: readonly AskedOption[]
+  readonly multiSelect: boolean
+}
+
+/** 一次「需要你回答」的全部素材。 */
+export interface QuestionNeeded extends SessionFacts {
+  /** agentless 的程序化提问没有会话，这时整行省掉。 */
+  readonly sessionId?: string
+  readonly questions: readonly AskedQuestion[]
 }
 
 interface TurnEnd {
@@ -180,18 +205,24 @@ export interface ApprovalStyle {
   readonly approvalHeading: string
 }
 
+/** 渲染「需要你回答」通知需要的那几项配置（`Config` 天然满足）。 */
+export interface QuestionStyle {
+  readonly questionHeading: string
+}
+
 /**
  * 取这一次发送要用的渲染口径。
  *
  * 两个字节预算都是 volatile：配置页里改完 loader 只就地更新引用、不重挂插件，
  * 所以每次发送前现读——挂载时摊平一份就会让页面上的改动等重启才生效。
  * @param config - 插件配置。
- * @returns 两类通知各自要读的那几项。
+ * @returns 每一类通知各自要读的那几项。
  */
-export function styleOf(config: Config): NotificationStyle & ApprovalStyle {
+export function styleOf(config: Config): NotificationStyle & ApprovalStyle & QuestionStyle {
   return {
     heading: config.heading,
     approvalHeading: config.approvalHeading,
+    questionHeading: config.questionHeading,
     includeQuestion: config.includeQuestion,
     includeOutput: config.includeOutput,
     maxQuestionBytes: config.maxQuestionBytes.get(),
@@ -258,13 +289,64 @@ function pushSection(
 }
 
 /**
- * 通知功能：现在有两类触发。
+ * 「需要你回答」通知的内容：把题干、补充说明和选项原样带出来。
+ *
+ * 用户要的是「现在有个选择题等我」，看到题干和选项就能判断该不该马上回去，
+ * 所以选项要带上；但 plan-review 这类 intent 的 `detail` 是整份计划，全量塞进
+ * 通知只会淹没选项——各段限长，全文还在会话里。
+ */
+export function questionDocument(question: QuestionNeeded, style: QuestionStyle): ImDocument {
+  const facts: ImFact[] = []
+  if (question.title !== undefined) facts.push({ label: '会话', value: question.title })
+  if (question.cwd !== undefined) facts.push({ label: '目录', value: question.cwd, code: true })
+  if (question.sessionId !== undefined) facts.push({ label: 'Session', value: question.sessionId, code: true })
+
+  return {
+    heading: `❓ ${style.questionHeading}`,
+    facts,
+    sections: question.questions.map((item) => ({ title: item.title, body: questionBody(item) })),
+    footer: 'DSH 正在等你的回答，请回到会话里处理。',
+  }
+}
+
+/** 单条问题正文：题干、补充说明、选项各占行。选项带编号，用户回「选 2」就能指代。 */
+function questionBody(question: AskedQuestion): string {
+  const lines: string[] = []
+  const text = excerpt(question.question, 200)
+  if (text !== undefined) lines.push(text)
+  const detail = excerpt(question.detail, 500)
+  if (detail !== undefined) lines.push(detail)
+  if (question.options.length > 0) {
+    lines.push(question.multiSelect ? '选项（可多选）：' : '选项：')
+    question.options.forEach((option, index) => {
+      const description = excerpt(option.description, 100)
+      const label = `${index + 1}. ${option.label}`
+      lines.push(description === undefined ? label : `${label}：${description}`)
+    })
+  }
+  return lines.join('\n')
+}
+
+/** 事件里的问题 → 通知要的形状。 */
+function askedQuestion(item: AskUserQuestionItem, index: number, count: number): AskedQuestion {
+  return {
+    title: item.header ?? (count === 1 ? '问题' : `问题 ${index + 1}`),
+    question: item.question,
+    detail: item.detail,
+    options: (item.options ?? []).map((option) => ({ label: option.label, description: option.description })),
+    multiSelect: item.multiSelect === true,
+  }
+}
+
+/**
+ * 通知功能：现在有三类触发。
  *
  * - `agent/status` 变成 `idle`：任务完成，发一条结果通知。
  * - `approval/request`：工具需要用户授权，发一条「回来处理」的通知。
+ * - `user-questions/request`：工具要用户回答问题（选项卡片），同样发一条。
  *
- * `approval/request` 是 waterfall，我们只旁观，所以照常 `next()`
- * 把决策交给真正的回答者（Web UI / 权限策略），不参与放行与否。
+ * 两个 `request` 都是 waterfall，我们只旁观，所以照常 `next()` 把决策/回答交给
+ * 真正的回答者（Web UI / 权限策略），不参与裁定。
  */
 export function registerNotify(ctx: Context, config: Config): void {
   const collector = new CompletionCollector()
@@ -284,10 +366,10 @@ export function registerNotify(ctx: Context, config: Config): void {
     }, styleOf(config)))
   })
 
-  // `prepend` 是必须的，不是优化：瀑布链在**第一个返回值的监听器**处就停了。dsh 宿主
-  // 把请求转发给浏览器 UI 的那层监听器在启动早期注册（还有 auto-review），用户点下
-  // 「允许/拒绝」后它直接带着决策返回、不再调 `next()`，排在它后面的监听器永远不执行。
-  // 通知只是旁观，必须站在链首。
+  // 两个 waterfall 的监听器都必须 `prepend`，不是优化：瀑布链在**第一个返回值的
+  // 监听器**处就停了。dsh 宿主把请求转发给浏览器 UI 的那层监听器在启动早期注册
+  // （还有 auto-review），用户点下「允许/拒绝」或提交回答后它直接带着结果返回、
+  // 不再调 `next()`，排在它后面的监听器永远不执行。通知只是旁观，必须站在链首。
   ctx.on('approval/request', (request, next) => {
     if (config.includeApprovals) {
       const facts = collector.peek(request.agent.session)
@@ -297,6 +379,21 @@ export function registerNotify(ctx: Context, config: Config): void {
         title: titleOf(ctx, request.agent.session, facts.title),
         toolName: request.toolName,
         reason: approvalReason(request),
+      }, styleOf(config)))
+    }
+    return next()
+  }, { prepend: true })
+
+  // 同 approval/request：同一个瀑布链，同样必须站链首（理由见上）。
+  ctx.on('user-questions/request', (request, next) => {
+    if (config.includeQuestions) {
+      const agent = request.agent
+      const facts = agent === undefined ? {} : collector.peek(agent.session)
+      send(ctx, config, questionDocument({
+        sessionId: agent?.session.id,
+        ...facts,
+        title: agent === undefined ? undefined : titleOf(ctx, agent.session, facts.title),
+        questions: request.questions.map((item, index) => askedQuestion(item, index, request.questions.length)),
       }, styleOf(config)))
     }
     return next()
@@ -382,8 +479,9 @@ function flatten(text: string): string | undefined {
   return flat === '' ? undefined : flat
 }
 
-/** 压平空白并截断，用于标题兜底。 */
-function excerpt(text: string, maxChars: number): string | undefined {
+/** 压平空白并截断，用于标题兜底与问题正文；缺内容返回 undefined。 */
+function excerpt(text: string | undefined, maxChars: number): string | undefined {
+  if (text === undefined) return undefined
   const flat = flatten(text)
   if (flat === undefined) return undefined
   return flat.length <= maxChars ? flat : `${flat.slice(0, maxChars - 1)}…`

@@ -25,6 +25,6 @@ export {
   userMessageEvent,
 } from './session.js'
 export type { FakeAgent } from './session.js'
-export { emitAgentStatus, emitSessionEvent, requestApproval } from './events.js'
+export { emitAgentStatus, emitSessionEvent, requestApproval, requestUserQuestions } from './events.js'
 export { entryById, insertedEntries, jsExpr, parsePatch, PATCH_SCHEMA } from './patch.js'
 export type { PatchEntry } from './patch.js'

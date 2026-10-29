@@ -2,7 +2,7 @@
 
 ## 概要
 
-企微全家桶：企业微信通道 + 任务完成/授权通知 + `/` 命令，一条命令装齐 [`dsh-im`](../dsh-im)、[`dsh-im-wecom`](../dsh-im-wecom)、[`dsh-notify`](../dsh-notify)、[`dsh-im-commands`](../dsh-im-commands) 四个包，外加一个**在 DSH Web 的插件页里填凭证与字节预算**的配置页（[`dsh-client-im-wecom-profile`](../dsh-client-im-wecom-profile)）。
+企微全家桶：企业微信通道 + 任务完成 / 授权 / 提问通知 + `/` 命令，一条命令装齐 [`dsh-im`](../dsh-im)、[`dsh-im-wecom`](../dsh-im-wecom)、[`dsh-notify`](../dsh-notify)、[`dsh-im-commands`](../dsh-im-commands) 四个包，外加一个**在 DSH Web 的插件页里填凭证与字节预算**的配置页（[`dsh-client-im-wecom-profile`](../dsh-client-im-wecom-profile)）。
 
 这是本仓库唯一的安装入口。它自己不含任何代码：运行时内容就是那份 [`cordis.patch.yml`](cordis.patch.yml)，`src/index.ts` 只有一行 `export {}`（与 dsh 自己的 `agent-team-profile` 同形）。
 
@@ -33,7 +33,7 @@ dsh plugin --profile web remove @lijcoder/dsh-im-wecom-profile
 | --- | --- | --- |
 | `im` | `@lijcoder/dsh-im` | 接缝：`ctx.im` 通道注册表 |
 | `im-wecom` | `@lijcoder/dsh-im-wecom` | 企微 aibot 长连接 |
-| `notify` | `@lijcoder/dsh-notify` | 完成 / 授权通知（`channel` 钉成 `wecom`） |
+| `notify` | `@lijcoder/dsh-notify` | 完成 / 授权 / 提问通知（`channel` 钉成 `wecom`） |
 | `im-commands` | `@lijcoder/dsh-im-commands` | `/list`、`/help` |
 | `im-wecom-config-ui` | `@lijcoder/dsh-client-im-wecom-profile` | 插件页里的配置表单（浏览器半侧，宿主 `apply` 是空的） |
 
@@ -75,6 +75,21 @@ dsh plugin --profile web remove @lijcoder/dsh-im-wecom-profile
 允许本次操作使用 danger-full-access 权限：要在主目录创建 xxx.md，该路径超出工作区白名单。
 
 DSH 正在等你的授权，请回到会话里处理。
+```
+
+```
+## ❓ DSH 提问通知
+> **会话**：修复登录超时
+> **目录**：`~/work/ai/dsh-plugins`
+> **Session**：`sess-abc123`
+
+**问题**
+先改哪个方案？
+选项：
+1. A
+2. B：更稳
+
+DSH 正在等你的回答，请回到会话里处理。
 ```
 
 在企微里发 `/list`：
@@ -160,7 +175,7 @@ DSH 正在等你的授权，请回到会话里处理。
 - 配置页要在 **loopback** 打开的 Web 里才写得进去（dsh 的设置在非 loopback 页面是 memory 模式）；远程访问时仍得靠环境变量或手写补丁。
 - 页面一次保存跨两行（`im-wecom` 与 `notify`），两个 namespace 各自原子，并非整体原子。
 - 同一个 botId 的长连接只能有一个：企微会把旧连接踢掉。别让第二个进程或第二个 profile 用同一个 `botId`。
-- 授权通知只是提醒，不能在企微里批准，得回会话处理。
+- 授权与提问通知只是提醒，不能在企微里批准或作答，得回会话处理。
 - 状态只用 emoji 表达、表格能画到什么程度，取决于这条通道的 markdown 子集（见[通道 README](../dsh-im-wecom)）。
 - 插件加载前已结束的回合不会补发通知。
 - `/list` 只覆盖当前进程内存里的会话：没加载进内存的历史会话、其它进程看不到。

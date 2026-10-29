@@ -1,7 +1,7 @@
 {
   "name": "@lijcoder/dsh-notify",
   "version": "0.1.0",
-  "description": "DeepSeek Harness 功能：任务完成或需要授权时，通过 @lijcoder/dsh-im 已注册的通道推送通知",
+  "description": "DeepSeek Harness 功能：任务完成、需要授权或回答问题时，通过 @lijcoder/dsh-im 已注册的通道推送通知",
   "license": "MIT",
   "type": "module",
   "main": "lib/index.js",
@@ -39,6 +39,7 @@
     "@deepseek-ai/dsh-session-projection": "*",
     "@deepseek-ai/dsh-session-title": "*",
     "@deepseek-ai/dsh-user-approval": "*",
+    "@deepseek-ai/dsh-user-questions": "*",
     "@deepseek-ai/schemastery": "*"
   },
   "devDependencies": {
@@ -48,6 +49,7 @@
     "@deepseek-ai/dsh-session-projection": "catalog:dsh",
     "@deepseek-ai/dsh-session-title": "catalog:dsh",
     "@deepseek-ai/dsh-user-approval": "catalog:dsh",
+    "@deepseek-ai/dsh-user-questions": "catalog:dsh",
     "@deepseek-ai/schemastery": "catalog:dsh",
     "@lijcoder/dsh-plugin-testkit": "workspace:*",
     "@types/node": "^22.20.1",

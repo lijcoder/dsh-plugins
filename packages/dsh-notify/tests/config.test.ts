@@ -48,8 +48,11 @@ describe('通知配置', () => {
   test('其余字段仍有默认值，且不 volatile（页面只编辑目标与两个预算）', () => {
     const resolved = resolve({})
     assert.equal(resolved.heading, 'DSH 任务通知')
+    assert.equal(resolved.approvalHeading, 'DSH 授权通知')
+    assert.equal(resolved.questionHeading, 'DSH 提问通知')
     assert.equal(resolved.includeApprovals, true)
-    for (const field of ['heading', 'approvalHeading', 'onlyCompleted', 'dryRun']) {
+    assert.equal(resolved.includeQuestions, true)
+    for (const field of ['heading', 'approvalHeading', 'questionHeading', 'includeApprovals', 'includeQuestions', 'onlyCompleted', 'dryRun']) {
       assert.notEqual(nodes[field]?.meta.volatile, true, `${field} 不该能被页面就地改`)
     }
   })

@@ -40,7 +40,7 @@ await h.dispose()                        // 等完全停稳
 | `event` | 自定义会话事件夹具（类型 + 数据 + 时间） |
 | `userMessageEvent` / `injectedMessageEvent` / `assistantMessageEvent` | 消息事件夹具 |
 | `turnStartEvent` / `turnEndEvent` / `titleEvent` | 回合与标题事件夹具 |
-| `emitSessionEvent` / `emitAgentStatus` / `requestApproval` | 按 dsh 真实分发模式触发事件 |
+| `emitSessionEvent` / `emitAgentStatus` / `requestApproval` / `requestUserQuestions` | 按 dsh 真实分发模式触发事件 |
 | `parsePatch` / `insertedEntries` / `entryById` / `jsExpr` / `PATCH_SCHEMA` | 把 `cordis.patch.yml` 当结构解析与断言 |
 
 ## 了解实现
@@ -50,7 +50,7 @@ await h.dispose()                        // 等完全停稳
 
 为什么是真实 Context 而不是手搓替身，见 [AGENTS.md](../../AGENTS.md) 的「测试」：替身会绕过注入解析、`ctx.effect` 清理和事件分发，于是缺陷在单测里完全看不见。
 
-`requestApproval` 特别说明：`approval/request` 在 dsh 里是 waterfall，不是普通事件，所以它用 `ctx.waterfall` 触发并返回最终决策，而不是 `ctx.emit`。
+`requestApproval` / `requestUserQuestions` 特别说明：`approval/request` 与 `user-questions/request` 在 dsh 里都是 waterfall，不是普通事件，所以它们用 `ctx.waterfall` 触发并返回最终结果，而不是 `ctx.emit`。两者也共享同一条坑：瀑布链在第一个返回值的监听器处就结束——要测一个旁观者插件，记得它得注册在链首（`{ prepend: true }`），否则一个先注册的回答者就能把它饿死。
 
 夹具的约定：只构造被测代码真正会读的字段，字段不够用时在这里补，不要在各自的插件测试里再造一份——重复的夹具会各自漂移，最后没人知道哪份是真的。只放两个以上插件确实用得上的东西，插件私有的替身（例如某个具体通道的假客户端）留在那个插件自己的 `tests/` 里。
 

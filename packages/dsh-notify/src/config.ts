@@ -21,8 +21,12 @@ export interface Config {
   heading: string
   /** 需要授权通知的标题。 */
   approvalHeading: string
+  /** 需要你回答问题时的通知标题。 */
+  questionHeading: string
   /** 需要用户授权时是否也发通知。 */
   includeApprovals: boolean
+  /** 需要用户回答问题（选项卡片）时是否也发通知。 */
+  includeQuestions: boolean
   /** 是否也给 subagent 子会话发通知。 */
   includeSubagents: boolean
   /** 只通知成功完成的回合。 */
@@ -58,7 +62,9 @@ export const Config: Schema<Config> = Schema.object({
   target: Schema.string().volatile().description('通知目标，语义由通道解释；在 DSH Web 的插件页填写'),
   heading: Schema.string().default('DSH 任务通知').description('任务完成通知的标题'),
   approvalHeading: Schema.string().default('DSH 授权通知').description('需要授权通知的标题'),
+  questionHeading: Schema.string().default('DSH 提问通知').description('需要你回答问题时的通知标题'),
   includeApprovals: Schema.boolean().default(true).description('需要用户授权时是否发通知'),
+  includeQuestions: Schema.boolean().default(true).description('需要用户回答问题（选项卡片）时是否发通知'),
   includeSubagents: Schema.boolean().default(false).description('是否通知 subagent 子会话'),
   onlyCompleted: Schema.boolean().default(false).description('只通知成功完成的回合'),
   includeQuestion: Schema.boolean().default(true).description('是否带上这一轮的问题'),

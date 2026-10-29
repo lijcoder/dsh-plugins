@@ -9,6 +9,7 @@ import {
   emitAgentStatus,
   emitSessionEvent,
   requestApproval,
+  requestUserQuestions,
   subagent,
   titleEvent,
   topLevel,
@@ -18,7 +19,7 @@ import {
   type TestContext,
 } from '@lijcoder/dsh-plugin-testkit'
 import * as NotifyPlugin from '../src/index.js'
-import { isTopLevel, notificationDocument, approvalDocument, styleOf } from '../src/notify.js'
+import { isTopLevel, notificationDocument, approvalDocument, questionDocument, styleOf } from '../src/notify.js'
 import { fakeChannel, testConfig, volatileConfig } from './fakes.js'
 
 const flush = (): Promise<void> => new Promise((resolve) => setImmediate(resolve))
@@ -155,13 +156,63 @@ describe('approvalDocument', () => {
   })
 })
 
+describe('questionDocument', () => {
+  const question = {
+    sessionId: 'sess-11',
+    title: '排查构建失败',
+    cwd: '/work/demo',
+    questions: [{
+      title: '问题',
+      question: '先改哪个？',
+      options: [{ label: 'A' }, { label: 'B', description: '更稳' }],
+      multiSelect: false,
+    }],
+  }
+
+  test('题干与选项各占行，选项说明用「：」连；结尾提示回会话处理', () => {
+    const document = questionDocument(question, testConfig())
+    assert.equal(document.heading, '❓ DSH 需要你回答')
+    assert.deepEqual(document.facts, [
+      { label: '会话', value: '排查构建失败' },
+      { label: '目录', value: '/work/demo', code: true },
+      { label: 'Session', value: 'sess-11', code: true },
+    ])
+    assert.deepEqual(document.sections, [{
+      title: '问题',
+      body: '先改哪个？\n选项：\n1. A\n2. B：更稳',
+    }])
+    assert.match(document.footer ?? '', /DSH 正在等你的回答/)
+  })
+
+  test('多选标注、补充说明与多问题编号', () => {
+    const document = questionDocument({
+      ...question,
+      questions: [
+        { title: '问题 1', question: '要跑测试吗？', options: [], multiSelect: false },
+        { title: '问题 2', question: '跑哪些？', detail: '全量比较慢', options: [{ label: '单测' }], multiSelect: true },
+      ],
+    }, testConfig())
+    assert.deepEqual(document.sections, [
+      { title: '问题 1', body: '要跑测试吗？' },
+      { title: '问题 2', body: '跑哪些？\n全量比较慢\n选项（可多选）：\n1. 单测' },
+    ])
+  })
+
+  test('agentless 提问没有会话可报：facts 为空', () => {
+    const document = questionDocument({
+      questions: [{ title: '问题', question: '继续？', options: [], multiSelect: false }],
+    }, testConfig())
+    assert.deepEqual(document.facts, [])
+    assert.equal(document.sections?.[0]?.title, '问题')
+  })
+})
+
 describe('isTopLevel', () => {
   test('顶层会话为真，subagent 子会话为假', () => {
     assert.equal(isTopLevel(topLevel()), true)
     assert.equal(isTopLevel(subagent()), false)
   })
 })
-
 describe('styleOf', () => {
   test('两个字节预算每次现读引用：页面保存后的下一条通知就用新值', () => {
     const { config, maxQuestionBytes, maxOutputBytes } = volatileConfig()
@@ -381,6 +432,103 @@ describe('registerNotify', () => {
     assert.equal(outcome, 'allowed-once')
     assert.equal(silent.sent.length, 0)
     await silent.h.dispose()
+  })
+
+  test('需要你回答时发通知，并且照常把回答交给下游', async () => {
+    const { h, sent } = await harness()
+    const session = topLevel('sess-12', '/work/demo')
+    emitSessionEvent(h.ctx, session, userMessageEvent('帮我选个方案'))
+
+    let downstream = 0
+    const answer = await requestUserQuestions(
+      h.ctx,
+      {
+        agent: { session },
+        questions: [{
+          id: 'q1',
+          question: '先改哪个？',
+          options: [{ label: 'A' }, { label: 'B', description: '更稳' }],
+        }],
+      },
+      async () => {
+        downstream += 1
+        return { answers: [{ id: 'q1', selected: ['A'] }] }
+      },
+    )
+
+    assert.equal(downstream, 1, '插件只旁观，必须继续调用 next()')
+    assert.deepEqual(answer, { answers: [{ id: 'q1', selected: ['A'] }] })
+    await flush()
+    assert.equal(sent.length, 1)
+    const document = sent[0]!.document
+    assert.equal(document.heading, '❓ DSH 需要你回答')
+    assert.equal(fact(document, '会话'), '帮我选个方案')
+    assert.equal(section(document, '问题'), '先改哪个？\n选项：\n1. A\n2. B：更稳')
+    await h.dispose()
+  })
+
+  test('网页回答者先注册并直接作答时通知照发：瀑布链同样在第一个返回值处停', async () => {
+    let asked = 0
+    const { h, sent } = await harness({
+      beforeNotify(ctx) {
+        ctx.on('user-questions/request', async () => {
+          asked += 1
+          return { answers: [{ id: 'q1', selected: ['A'] }] }
+        })
+      },
+    })
+
+    const answer = await requestUserQuestions(
+      h.ctx,
+      { questions: [{ id: 'q1', question: '先改哪个？', options: [{ label: 'A' }] }] },
+      async () => ({ answers: [] }),
+    )
+    await flush()
+
+    assert.equal(asked, 1)
+    assert.deepEqual(answer, { answers: [{ id: 'q1', selected: ['A'] }] })
+    assert.equal(sent.length, 1, '回答者先返回值时通知不能被吞掉')
+    await h.dispose()
+  })
+
+  test('多个问题按「问题 N」编号，header 优先作小标题；多选与选项照原样', async () => {
+    const { h, sent } = await harness()
+    await requestUserQuestions(
+      h.ctx,
+      {
+        agent: { session: topLevel('sess-14') },
+        questions: [
+          { id: 'q1', question: '先改哪个方案？', header: '方案', options: [{ label: 'A' }] },
+          { id: 'q2', question: '跑哪些测试？', options: [{ label: '单测' }], multiSelect: true },
+        ],
+      },
+      async () => ({ answers: [] }),
+    )
+    await flush()
+
+    const sections = sent[0]!.document.sections ?? []
+    assert.deepEqual(sections.map((item) => item.title), ['方案', '问题 2'])
+    assert.equal(sections[1]?.body, '跑哪些测试？\n选项（可多选）：\n1. 单测')
+    await h.dispose()
+  })
+
+  test('includeQuestions=false 时只放行不通知', async () => {
+    const { h, sent } = await harness({ config: { includeQuestions: false } })
+    let downstream = 0
+    const answer = await requestUserQuestions(
+      h.ctx,
+      { agent: { session: topLevel('sess-13') }, questions: [{ id: 'q1', question: '继续？', options: [] }] },
+      async () => {
+        downstream += 1
+        return { answers: [] }
+      },
+    )
+    await flush()
+
+    assert.equal(downstream, 1)
+    assert.deepEqual(answer, { answers: [] })
+    assert.equal(sent.length, 0)
+    await h.dispose()
   })
 
   test('字节预算走配置页填进来的值：挂载时按 schema 解析出的预算就是发出正文的上限', async () => {

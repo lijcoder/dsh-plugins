@@ -9,15 +9,20 @@ export {
   CompletionCollector,
   isTopLevel,
   notificationDocument,
+  questionDocument,
   registerNotify,
   styleOf,
 } from './notify.js'
 export type {
   ApprovalNeeded,
   ApprovalStyle,
+  AskedOption,
+  AskedQuestion,
   Completion,
   NotificationStyle,
   Outcome,
+  QuestionNeeded,
+  QuestionStyle,
   SessionFacts,
 } from './notify.js'
 

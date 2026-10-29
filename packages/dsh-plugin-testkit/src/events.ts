@@ -45,3 +45,27 @@ export function requestApproval(
   ) => Promise<unknown>
   return waterfall('approval/request', request, decide)
 }
+
+/**
+ * 触发 `user-questions/request` waterfall，并给出下游回答。
+ *
+ * 与 {@link requestApproval} 同形：链同样在第一个返回值的监听器处结束，第三个参数
+ * 只有前面都调了 `next()` 才会执行。
+ *
+ * @param ctx - 被测插件所在的 Context。
+ * @param request - 提问载荷；测试里通常只填被测插件会读的字段。
+ * @param answer - 模拟「下游（真正的 UI）如何作答」。
+ * @returns 最外层监听器的返回值，即最终回答。
+ */
+export function requestUserQuestions(
+  ctx: Context,
+  request: unknown,
+  answer: () => unknown,
+): Promise<unknown> {
+  const waterfall = ctx.waterfall as unknown as (
+    name: string,
+    request: unknown,
+    answer: () => unknown,
+  ) => Promise<unknown>
+  return waterfall('user-questions/request', request, answer)
+}
