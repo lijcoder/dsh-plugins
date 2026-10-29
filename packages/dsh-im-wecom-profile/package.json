@@ -37,6 +37,7 @@
     }
   },
   "dependencies": {
+    "@lijcoder/dsh-client-im-wecom-profile": "workspace:^",
     "@lijcoder/dsh-im": "workspace:^",
     "@lijcoder/dsh-im-commands": "workspace:^",
     "@lijcoder/dsh-im-wecom": "workspace:^",

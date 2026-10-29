@@ -12,7 +12,8 @@
 | 实现 | [`@lijcoder/dsh-im-wecom`](./packages/dsh-im-wecom) | 企业微信智能机器人（aibot）长连接；把中立文档渲染成企微 markdown |
 | 功能 | [`@lijcoder/dsh-notify`](./packages/dsh-notify) | 任务完成、或需要用户授权时推送通知 |
 | 功能 | [`@lijcoder/dsh-im-commands`](./packages/dsh-im-commands) | 在 IM 里用 `/` 命令查询 dsh 状态（`/list`、`/help`） |
-| 组合包 | [`@lijcoder/dsh-im-wecom-profile`](./packages/dsh-im-wecom-profile) | 安装入口：企微通道 + 通知 + 命令，一条命令装齐上面四个 |
+| 界面 | [`@lijcoder/dsh-client-im-wecom-profile`](./packages/dsh-client-im-wecom-profile) | Web 插件页里的配置表单：填凭证、通知目标与三段字节预算，保存即生效 |
+| 组合包 | [`@lijcoder/dsh-im-wecom-profile`](./packages/dsh-im-wecom-profile) | 安装入口：企微通道 + 通知 + 命令 + 配置页，一条命令装齐上面五个 |
 | 工具 | [`@lijcoder/dsh-plugin-testkit`](./packages/dsh-plugin-testkit) | 插件测试工具；不是插件，只给开发用 |
 
 以后接飞书 = 新增一个 `dsh-im-feishu` 库 + 一个把两个通道一起插进去的组合包，功能包一行不改。加平台的成本落在组合包上，见 [AGENTS.md](./AGENTS.md) 的「安装入口只能是组合包」。
@@ -27,14 +28,18 @@ dsh plugin --profile web add @lijcoder/dsh-im-wecom-profile
 
 成员包不能单独装：`dsh plugin add` 一个不带 `dsh.bundle` 的包不激活任何行。原因见 [AGENTS.md](./AGENTS.md) 的「安装入口只能是组合包」。
 
-### 环境变量
+### 配置
 
-| 变量 | 属于 | 必填 |
-| --- | --- | --- |
-| `WECOM_BOT_ID` / `WECOM_BOT_SECRET` | 企微通道 | 是（缺则那几行停用） |
-| `IM_NOTIFY_TARGET` | 通知功能 | 是（缺则那几行停用） |
+**推荐在页面里配**：Web 侧栏「插件 → `@lijcoder/dsh-im-wecom-profile`」，填机器人 ID、Secret、通知目标与三段字节预算（整条消息的兜底，加「问题」「回复」两段），保存即生效（凭证变了企微通道当场重连，不用重启）。页面写的是当前 profile 的 `cordis.patch.yml`。
 
-缺凭证只是对应行停用，不会让 profile 起不来。这三个变量也可以写进 `<启动目录>/.env` 或 `$DSH_HOME/.env`。变量名不能以 `DSH_` / `XDG_` / `DYLD_` / `BASH_FUNC_` 开头——启动器把它们保留给引导变量，写进 `.env` 会让 dsh 报错退出，不是忽略。
+也可以走环境变量，它们是**组合层**的默认值（页面里清空某个字段就回落到它）：
+
+| 变量 | 属于 |
+| --- | --- |
+| `WECOM_BOT_ID` / `WECOM_BOT_SECRET` | 企微通道 |
+| `IM_NOTIFY_TARGET` | 通知功能 |
+
+缺凭证不会让 profile 起不来，也不会停用整行：插件照常挂载，通道保持空闲，页面上把凭证填好就自动连上。变量可以写进 `<启动目录>/.env` 或 `$DSH_HOME/.env`。变量名不能以 `DSH_` / `XDG_` / `DYLD_` / `BASH_FUNC_` 开头——启动器把它们保留给引导变量，写进 `.env` 会让 dsh 报错退出，不是忽略。
 
 > 光在自己 profile 的 `cordis.patch.yml` 里手写这些行是不够的：只有 bundle 提供的行才被启动器认，手写的行找不到 bundle 会被丢掉，只打一句警告。也不要对着正在运行的 profile 跑 `--dump-config`——它会重写该 profile 的 `cordis.yml`。
 

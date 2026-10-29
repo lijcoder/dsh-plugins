@@ -22,9 +22,9 @@
 dsh plugin --profile web add @lijcoder/dsh-im-wecom-profile
 ```
 
-组合包按「接缝 → 通道 → 功能」插好四行，并把本包设为依赖。它给本包插的行长什么样、怎么按 `id: im-wecom` 覆盖，见[组合包 README](../dsh-im-wecom-profile)。
+组合包按「接缝 → 通道 → 功能 → 配置页」插好五行，并把本包设为依赖。它给本包插的行长什么样、怎么按 `id: im-wecom` 覆盖，见[组合包 README](../dsh-im-wecom-profile)。
 
-凭证从环境变量读，缺则那一行停用，不会让 profile 起不来：
+凭证有两条来源：**Web 插件页里的配置表**（推荐，保存即生效，企微长连接当场重连），或组合层给的环境变量（缺了也不停用整行，只是通道保持空闲）：
 
 ```sh
 export WECOM_BOT_ID=...
@@ -35,7 +35,7 @@ export WECOM_BOT_SECRET=...
 
 | 字段 | 默认 | 说明 |
 | --- | --- | --- |
-| `botId` / `secret` | 必填 | 机器人凭证 |
+| `botId` / `secret` | 可缺 | 机器人凭证。**volatile**：配置页改完由 loader 就地更新引用，插件不重挂；`secret` 另带 `role('secret')`，值不回浏览器 |
 | `scene` / `plugVersion` / `wsUrl` | 无 | 透传 SDK；`wsUrl` 用于私有化部署 |
 | `heartbeatInterval` | `30000` | 心跳间隔（毫秒） |
 | `reconnectInterval` | `1000` | 重连基础延迟，SDK 指数退避 |
@@ -43,7 +43,9 @@ export WECOM_BOT_SECRET=...
 | `maxAuthFailureAttempts` | `5` | `-1` 无限重试 |
 | `requestTimeout` | `10000` | 等待消息回执超时（也约束卸载时的收尾等待） |
 | `connectTimeoutMs` | `15000` | 等待认证成功上限，超时本条发送记失败 |
-| `maxContentBytes` | `20480` | 单条内容字节预算，渲染后兜底截断 |
+| `maxContentBytes` | `20480` | 单条内容字节预算，渲染后兜底截断。**volatile**：Web 插件页里改完当场生效（渲染期现读，不重连） |
+
+缺凭证不是错误：插件照常挂载、**不注册通道**（注册一条连不上的通道只会让功能在发送时才炸），日志里说一句「未配置」。凭证补齐（volatile 更新或重启）后自动建连。
 
 这里没有任何通知策略（发什么、给谁发、什么时候发）——那些属于功能插件，通道配置只回答「怎么连、怎么渲染」。
 
@@ -81,6 +83,12 @@ aibot 的 markdown 通道支持标准 markdown 表格。已知不支持的只有
 ### 字节预算的依据
 
 `20480` 是 SDK 文档给的 `replyStream` 上限（「回复内容最长不超过 20480 个字节」），被动回复（`/list`、`/help`）走的就是它，这个值是准的。主动推送（通知）走 `sendMessage`，SDK 和文档都没写上限；如果哪天通知因为内容过长被拒（日志里一条 warn），把这个值调小即可。截断只影响长文，不影响投递。
+
+它也是**最后一道**：渲染完的整条 markdown 由这里兜底，所以通知那两段的预算（[`@lijcoder/dsh-notify`](../dsh-notify) 的 `maxQuestionBytes` / `maxOutputBytes`）调得再大，发出去的消息也不会超过这个值——想让正文更长，两个都要调大。
+
+### volatile 字段分两类：凭证重连、预算现读
+
+`.volatile()` 的字段改完**不会重挂插件**（loader 只就地更新引用再发 `loader/volatile-update`），所以页面里的改动只能以事件形式到达，`provideWecomChannel` 自己对着当前值处理：凭证决定开、关、换连接，并把「先断后连」串行化，两次快速改动不会留下两条长连接；`maxContentBytes` 只是把注册进 `ctx.im` 的那份 `capabilities` 刷成新值（`renderDocument` 读的就是同一份引用），不重连——重连会白踢掉正在用的那条长连接。非 volatile 的参数（超时、重连次数之类）改了仍走正常的重挂路径。
 
 </details>
 

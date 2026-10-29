@@ -97,7 +97,8 @@ export class CompletionCollector {
         if (event.data.source.kind !== 'user') break
         const text = textOf(event.data.content)
         if (state.fallbackTitle === undefined) state.fallbackTitle = excerpt(text, 60)
-        if (state.question === undefined) state.question = excerpt(text, 500)
+        // 正文不在这里截断：截多少完全由 maxQuestionBytes 决定，先斩一刀会让那个预算调大也没用。
+        if (state.question === undefined) state.question = flatten(text)
         break
       }
       case 'assistant/message':
@@ -177,6 +178,25 @@ export interface NotificationStyle {
 /** 渲染「需要授权」通知需要的那几项配置（`Config` 天然满足）。 */
 export interface ApprovalStyle {
   readonly approvalHeading: string
+}
+
+/**
+ * 取这一次发送要用的渲染口径。
+ *
+ * 两个字节预算都是 volatile：配置页里改完 loader 只就地更新引用、不重挂插件，
+ * 所以每次发送前现读——挂载时摊平一份就会让页面上的改动等重启才生效。
+ * @param config - 插件配置。
+ * @returns 两类通知各自要读的那几项。
+ */
+export function styleOf(config: Config): NotificationStyle & ApprovalStyle {
+  return {
+    heading: config.heading,
+    approvalHeading: config.approvalHeading,
+    includeQuestion: config.includeQuestion,
+    includeOutput: config.includeOutput,
+    maxQuestionBytes: config.maxQuestionBytes.get(),
+    maxOutputBytes: config.maxOutputBytes.get(),
+  }
 }
 
 /**
@@ -261,7 +281,7 @@ export function registerNotify(ctx: Context, config: Config): void {
     send(ctx, config, notificationDocument({
       ...completion,
       title: titleOf(ctx, agent.session, completion.title),
-    }, config))
+    }, styleOf(config)))
   })
 
   ctx.on('approval/request', (request, next) => {
@@ -273,7 +293,7 @@ export function registerNotify(ctx: Context, config: Config): void {
         title: titleOf(ctx, request.agent.session, facts.title),
         toolName: request.toolName,
         reason: approvalReason(request),
-      }, config))
+      }, styleOf(config)))
     }
     return next()
   })
@@ -302,10 +322,19 @@ function approvalReason(request: {
 /**
  * 发送一条通知：`dryRun` 只记日志，失败只告警，绝不冒泡回 agent loop。
  *
+ * 目标现读 volatile 引用：用户在插件页填完，loader 只更新引用、不重挂插件，
+ * 挂载时缓存一份的话这一轮改完得等重启才生效。没填目标就只记日志——那不是错误，
+ * 只是还没配。
+ *
  * 通道按名字**惰性解析**：功能插件可能先于通道注册就挂上（patch 里的行序不保证），
  * 所以在发送时取；配置写错通道名也只是这条通知发不出去，不应该让整轮对话炸掉。
  */
 function send(ctx: Context, config: Config, document: ImDocument): void {
+  const target = config.target.get()
+  if (target === undefined) {
+    ctx.logger.info('通知目标未配置：在 DSH Web 的「插件」页填写后再发送')
+    return
+  }
   if (config.dryRun) {
     ctx.logger.info('[dry-run] 未发送的通知：%o', document)
     return
@@ -317,7 +346,7 @@ function send(ctx: Context, config: Config, document: ImDocument): void {
     ctx.logger.warn('通知发送失败：%s', error instanceof Error ? error.message : String(error))
     return
   }
-  channel.send(config.target, document).catch((error: unknown) => {
+  channel.send(target, document).catch((error: unknown) => {
     ctx.logger.warn('通知发送失败：%s', error instanceof Error ? error.message : String(error))
   })
 }
@@ -343,10 +372,16 @@ function textOf(content: readonly unknown[]): string {
   return parts.join('\n')
 }
 
+/** 压平空白，用于正文段落；全是空白返回 undefined。 */
+function flatten(text: string): string | undefined {
+  const flat = text.replace(/\s+/g, ' ').trim()
+  return flat === '' ? undefined : flat
+}
+
 /** 压平空白并截断，用于标题兜底。 */
 function excerpt(text: string, maxChars: number): string | undefined {
-  const flat = text.replace(/\s+/g, ' ').trim()
-  if (flat === '') return undefined
+  const flat = flatten(text)
+  if (flat === undefined) return undefined
   return flat.length <= maxChars ? flat : `${flat.slice(0, maxChars - 1)}…`
 }
 

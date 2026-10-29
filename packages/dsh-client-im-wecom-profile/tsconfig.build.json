@@ -1,0 +1,13 @@
+{
+  // 只发宿主半侧：浏览器半侧由 esbuild 打成 lib/client.js，不走 tsc。
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "allowImportingTsExtensions": false,
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": ["src/index.ts", "src/namespaces.ts"]
+}

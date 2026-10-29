@@ -12,7 +12,7 @@ packages/<npm 包名>/          成员：纯库，一个包 = 一个可发布的
   README.md                   这个包的契约
 packages/<npm 包名>-profile/  组合包：唯一安装入口
   package.json                dsh.bundle.patch + 成员当 dependencies
-  cordis.patch.yml            插行（row id / 完整包名 / 环境变量开关）
+  cordis.patch.yml            插行（row id / 完整包名 / 环境变量默认值）
   src/index.ts                只有 export {}
   tests/patch.test.ts         patch 结构断言
 packages/dsh-plugin-testkit/  只放「两个以上包真的用得上」的测试工具
@@ -85,7 +85,20 @@ dsh 的 [`loader`](https://github.com/deepseek-ai/deepseek-harness/blob/main/ven
 - 导出 `name` / `inject` / `Config` / `apply`，跟 dsh 主仓库一致。
 - 读别的插件提供的服务必须声明 `inject`，否则运行时直接抛 `cannot get property "x" without inject`。反过来，自己 `ctx.provide` 的服务不要 inject——会等自己，死锁。
 - 用 `ctx.effect(() => () => ...)` 保证 dispose 达到「完全停稳」而不只是「请求停止」。长连接、定时器、子进程都必须能被 effect 收掉，并且有测试断言收掉了。
-- 配置里不要塞真实密钥。`cordis.patch.yml` 用 `!!js process.env.X`，让缺凭证时整行 disabled，而不是让 profile 起不来。
+- 配置里不要塞真实密钥。`cordis.patch.yml` 用 `!!js process.env.X` 给出组合层默认值。
+
+## 用户要填的配置：volatile + 可缺
+
+- 想让用户在 Web 插件页里填的字段必须 `.volatile()`：设置只暴露 volatile 字段（没有就整个条目不进表单），而且改完 loader 只就地更新引用、**不重挂插件**——所以插件要监听 `loader/volatile-update` 自己对着新值重连/重建，不能挂载时缓存一份。改完要重启才算生效的字段，别做成 volatile。
+- 不许用「缺配置就 `disabled` 整行」当保护：停用的行没有活着的 fiber，`describe` 根本不收它，用户在页面上**看不到**那个表单，于是永远填不进去——死锁。缺凭证的代价应该是「插件挂着、功能空闲、日志说清楚」，而不是行消失。
+- 密钥字段加 `role('secret')`：它的值不回浏览器，页面只知道配没配；表单里的空草稿必须理解为「不修改」而不是清空。
+
+## 浏览器半侧（客户端插件）
+
+- 客户端模块系统只把包的浏览器半侧挂在「`name` 恰好是裸包名」的那条 Loader 行上：客户端包因此必须自己占一条行，宿主 `apply` 可以是空的；拆成子路径导出的行**静默**不带半侧。
+- dsh 生成客户端 bundle 的 `clientBundle` 预设没随包发布，仓库外要自己复刻（我们用 esbuild，见 `dsh-client-im-wecom-profile/scripts/build-client.mjs`）：登记 `window.__ModuleLoader__.load({id, factory})` 闭包工厂、平台模块表留成 `require()`、其余内联。`lib/client.js` 必须先构建——缺它时 dsh 在启动阶段直接报激活失败，不是页面空着。
+- 浏览器半侧在 Node 里加载不了（`ui-primitives` 之类是给 Vite 的静态链接产物，带 CSS module 与 katex / shiki 依赖树）。所以把真正属于我们的判断拆进一个不 import UI 的纯模块（见 `page-state.ts`）再测，别硬测整页。
+- `inject` 只声明 Web 组合一定会提供的服务（`slots` / `locale` / `configForms` / `remote` 一类）：缺一个 fiber 会一直 PENDING，整个 Web 启动都算失败。
 
 ## 事件 vs 状态
 
@@ -150,7 +163,7 @@ dsh --profile <测试 profile> --dump-config | grep <row id>
 
 1. 新能力先定接缝（契约 + `ctx.im` 式注册表），实现与功能都只依赖它；
 2. 成员包 `mkdir packages/<name>`，照现有成员的 `package.json` / `tsconfig.json` 抄一份，不要加 `dsh.bundle`；
-3. 需要能被安装时，改组合包的 `cordis.patch.yml`：row 的 `name` 写完整包名，缺配置的行用 `!!js` 闸门停用；
+3. 需要能被安装时，改组合包的 `cordis.patch.yml`：row 的 `name` 写完整包名，缺配置的行**不要**停用（见上面的「用户要填的配置」），环境变量只当组合层默认值；
 4. 根 README 的包表加一行，按上面的文档分层写这个包的 README；
 5. `pnpm install && pnpm check`；
 6. 装进隔离 profile，`--dump-config` 确认那一层在、且没有重复行。

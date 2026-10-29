@@ -18,8 +18,8 @@ import {
   type TestContext,
 } from '@lijcoder/dsh-plugin-testkit'
 import * as NotifyPlugin from '../src/index.js'
-import { isTopLevel, notificationDocument, approvalDocument } from '../src/notify.js'
-import { fakeChannel, testConfig } from './fakes.js'
+import { isTopLevel, notificationDocument, approvalDocument, styleOf } from '../src/notify.js'
+import { fakeChannel, testConfig, volatileConfig } from './fakes.js'
 
 const flush = (): Promise<void> => new Promise((resolve) => setImmediate(resolve))
 
@@ -156,6 +156,19 @@ describe('isTopLevel', () => {
   })
 })
 
+describe('styleOf', () => {
+  test('两个字节预算每次现读引用：页面保存后的下一条通知就用新值', () => {
+    const { config, maxQuestionBytes, maxOutputBytes } = volatileConfig()
+    assert.equal(styleOf(config).maxQuestionBytes, 400)
+    assert.equal(styleOf(config).maxOutputBytes, 2_000)
+
+    maxQuestionBytes.set(1_000)
+    maxOutputBytes.set(50)
+    assert.equal(styleOf(config).maxQuestionBytes, 1_000)
+    assert.equal(styleOf(config).maxOutputBytes, 50)
+  })
+})
+
 describe('registerNotify', () => {
   test('agent 空闲时往配置的目标发一条；running 不发', async () => {
     const { h, sent } = await harness({ config: { target: 'chat-42' } })
@@ -173,6 +186,17 @@ describe('registerNotify', () => {
     assert.equal(sent[0]?.document.heading, '✅ DSH 任务完成')
     assert.equal(fact(sent[0]!.document, '会话'), '帮我把登录超时改大一点')
     assert.equal(section(sent[0]!.document, '回复'), '好了')
+    await h.dispose()
+  })
+
+  test('目标还没配（插件页里空着）时不发，只记一条日志', async () => {
+    const { h, sent } = await harness({ config: { target: undefined } })
+    const session = topLevel('sess-no-target')
+    finishTurn(h, session)
+    emitAgentStatus(h.ctx, { session }, 'idle')
+    await flush()
+    assert.equal(sent.length, 0, '没目标就不该发，也不该报错')
+    assert.ok(h.logs.has('通知目标未配置'))
     await h.dispose()
   })
 
@@ -324,6 +348,38 @@ describe('registerNotify', () => {
     assert.equal(outcome, 'allowed-once')
     assert.equal(silent.sent.length, 0)
     await silent.h.dispose()
+  })
+
+  test('字节预算走配置页填进来的值：挂载时按 schema 解析出的预算就是发出正文的上限', async () => {
+    const { h, sent } = await harness({ config: { maxQuestionBytes: 30, maxOutputBytes: 50 } })
+    const session = topLevel('sess-budget')
+    finishTurn(h, session)
+    emitAgentStatus(h.ctx, { session }, 'idle')
+    await flush()
+
+    const document = sent[0]!.document
+    const question = section(document, '问题') ?? ''
+    const output = section(document, '回复') ?? ''
+    assert.ok(utf8Length(question) <= 30, `问题段实际 ${utf8Length(question)} 字节`)
+    assert.ok(utf8Length(output) <= 50, `回复段实际 ${utf8Length(output)} 字节`)
+    await h.dispose()
+  })
+
+  test('问题正文只受预算约束：超过 500 字也不在采集阶段被预截断', async () => {
+    const { h, sent } = await harness({ config: { maxQuestionBytes: 10_000, maxOutputBytes: 10_000 } })
+    const session = topLevel('sess-long-question')
+    const question = `${'长'.repeat(600)}尾巴`
+
+    emitSessionEvent(h.ctx, session, turnStartEvent(1, 1_000))
+    emitSessionEvent(h.ctx, session, userMessageEvent(question))
+    emitSessionEvent(h.ctx, session, turnEndEvent(1, 'completed', 2_000))
+    emitAgentStatus(h.ctx, { session }, 'idle')
+    await flush()
+
+    const body = section(sent[0]!.document, '问题') ?? ''
+    assert.equal(body, question, '预算够大时正文该一字不少')
+    assert.ok(utf8Length(body) > 1_500, `实际 ${utf8Length(body)} 字节`)
+    await h.dispose()
   })
 
   test('session/disposed 释放采集状态，之后空闲不再发送', async () => {

@@ -1,0 +1,17 @@
+{
+  // 两个编译面（宿主半侧 + 浏览器半侧）共用一个类型检查项目：
+  //   - 宿主半侧是普通的 Node ESM，被 dsh 的加载器按包名 import；
+  //   - 浏览器半侧是 TSX，由 esbuild 打成客户端 bundle（见 scripts/build-client.mjs）。
+  // 所以解析用 bundler（浏览器侧的 `./ConfigPage.tsx` 得能解析），lib 带上 DOM。
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "allowImportingTsExtensions": true,
+    "rewriteRelativeImportExtensions": true,
+    "jsx": "react-jsx",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"]
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts"]
+}

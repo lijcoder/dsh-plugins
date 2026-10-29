@@ -10,6 +10,7 @@ export {
   isTopLevel,
   notificationDocument,
   registerNotify,
+  styleOf,
 } from './notify.js'
 export type {
   ApprovalNeeded,

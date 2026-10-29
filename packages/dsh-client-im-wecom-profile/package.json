@@ -1,0 +1,76 @@
+{
+  "name": "@lijcoder/dsh-client-im-wecom-profile",
+  "version": "0.1.0",
+  "description": "DeepSeek Harness 浏览器侧配置页：在「插件」页给企微全家桶组合包填凭证与通知目标，不用再改环境变量或手写 patch",
+  "license": "MIT",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "default": "./lib/client.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json && node scripts/build-client.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "prepack": "npm run build"
+  },
+  "dsh": {
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-plugin-manager"
+      ]
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "*",
+    "@deepseek-ai/dsh-api-remotes": "*",
+    "@deepseek-ai/dsh-client-locale": "*",
+    "@deepseek-ai/dsh-client-store": "*",
+    "@deepseek-ai/dsh-client-ui-plugin-manager": "*",
+    "@deepseek-ai/dsh-client-ui-primitives": "*",
+    "@deepseek-ai/dsh-client-ui-renderer": "*",
+    "@deepseek-ai/dsh-client-ui-settings": "*",
+    "@deepseek-ai/dsh-client-ui-slots": "*",
+    "@deepseek-ai/dsh-settings": "*",
+    "react": "^18.2.0"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "catalog:dsh",
+    "@deepseek-ai/dsh-api-remotes": "catalog:dsh",
+    "@deepseek-ai/dsh-client-locale": "catalog:dsh",
+    "@deepseek-ai/dsh-client-store": "catalog:dsh",
+    "@deepseek-ai/dsh-client-ui-plugin-manager": "catalog:dsh",
+    "@deepseek-ai/dsh-client-ui-primitives": "catalog:dsh",
+    "@deepseek-ai/dsh-client-ui-renderer": "catalog:dsh",
+    "@deepseek-ai/dsh-client-ui-settings": "catalog:dsh",
+    "@deepseek-ai/dsh-client-ui-slots": "catalog:dsh",
+    "@deepseek-ai/dsh-settings": "catalog:dsh",
+    "@types/node": "^22.20.1",
+    "@types/react": "~18.3.1",
+    "esbuild": "^0.28.2",
+    "react": "^18.2.0",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}

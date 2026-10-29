@@ -1,40 +1,44 @@
-# 企微全家桶的 bundle 层：一次插入四行（接缝 → 通道 → 功能）。
+# 企微全家桶的 bundle 层：一次插入五行（接缝 → 通道 → 功能 → 配置页）。
 #
 # **这是唯一的安装入口。** 那四个成员包是纯库（不带 `dsh.bundle`），单独 `add` 它们
 # 只会作为普通依赖躺在 profile 里、不激活任何行——因为 cordis 里「激活」的单位是
 # bundle 的 patch，不是包。所以装这套就用本包，别去单独 add 成员。
 #
-# 缺少配置时**除 im 接缝行外的三行一起停用**（一个开关管整条链路），所以装完没配好不会让 profile 起不来：
+# 凭证**不再靠环境变量门控**：五行一律启用，缺配置时插件照常挂载、通道保持空闲，
+# 用户在「插件 → 本组合包」的配置页里填完就自动连上（配置页编辑的六个字段都是 volatile，
+# 改完由 loader 就地更新引用，插件不重挂、也不用重启）。
 #
-#   export WECOM_BOT_ID=...
-#   export WECOM_BOT_SECRET=...
-#   export IM_NOTIFY_TARGET=chatid或userid
+# 环境变量仍然有效，它是**组合层**的值：页面里清空某个字段，就回落到这里给的值。
 #
-# 注意变量名不能以 DSH_ 开头：那两个前缀（DSH_ / XDG_ / DYLD_ / BASH_FUNC_）被
+#   export WECOM_BOT_ID=...        # 可选：等价于在配置页里填机器人 ID
+#   export WECOM_BOT_SECRET=...    # 可选
+#   export IM_NOTIFY_TARGET=...    # 可选：chatid 或 userid
+#
+# 为什么不能像以前那样「缺配置就把行停用」：设置只暴露**活着的**条目（describe 只收
+# fiber 处于 ACTIVE 的行），停用的行连表单都不会出现，用户就没地方填凭证——死锁。
+# 要整条链路关掉，仍然可以显式写 `disabled: true`。
+#
+# 注意变量名不能以 DSH_ 开头：那几个前缀（DSH_ / XDG_ / DYLD_ / BASH_FUNC_）被
 # 启动器保留，写进 .env 会让 dsh 直接报错退出。
 #
 # 想写死凭证 / 改默认值，在自己 profile 的 cordis.patch.yml 里按 id 覆盖。
-# 注意两点：
-#   1. 补丁整块替换 config，覆盖时要写全该行需要的键；
-#   2. 本层的 disabled 会继续生效（补丁不写 disabled 就沿用），
-#      所以不靠环境变量启用时，**三行都要显式写 disabled: false**（`im` 不需要）。
+# 注意：补丁整块替换 config，覆盖时要写全该行需要的键。
 #
 # 行序**不**决定激活顺序（loader 先 await import 模块、再创建 fiber，且不等激活），
-# 这里按「接缝 → 通道 → 功能」排只是读起来清楚：功能都从接缝取入站消息，不要求通道先就位。
+# 这里按「接缝 → 通道 → 功能 → 配置页」排只是读起来清楚：功能都从接缝取入站消息，
+# 不要求通道先就位；配置页只要求那两行活着，与顺序无关。
 - insert:
     - id: im
       name: '@lijcoder/dsh-im'
 
     - id: im-wecom
       name: '@lijcoder/dsh-im-wecom'
-      disabled: !!js "!(process.env.WECOM_BOT_ID && process.env.WECOM_BOT_SECRET && process.env.IM_NOTIFY_TARGET)"
       config:
         botId: !!js process.env.WECOM_BOT_ID
         secret: !!js process.env.WECOM_BOT_SECRET
 
     - id: notify
       name: '@lijcoder/dsh-notify'
-      disabled: !!js "!(process.env.WECOM_BOT_ID && process.env.WECOM_BOT_SECRET && process.env.IM_NOTIFY_TARGET)"
       config:
         # 组合包把通道钉死成企微。要多平台共存，就再做一个「多通道」的 profile 组合包，
         # 而不是在这里改成自动选择——显式写死，读的人不用猜。
@@ -43,6 +47,11 @@
 
     - id: im-commands
       name: '@lijcoder/dsh-im-commands'
-      disabled: !!js "!(process.env.WECOM_BOT_ID && process.env.WECOM_BOT_SECRET && process.env.IM_NOTIFY_TARGET)"
       config:
         channel: wecom
+
+    # 配置页的浏览器半侧。它在 profile 里只占一条行（宿主 apply 是空的）：
+    # 客户端模块系统只给「name 恰好是裸包名」的行挂浏览器半侧，页面代码在 lib/client.js 里，
+    # 注册到「插件」页本组合包的详情（plugins.bundle.config）。
+    - id: im-wecom-config-ui
+      name: '@lijcoder/dsh-client-im-wecom-profile'

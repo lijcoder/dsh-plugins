@@ -39,6 +39,7 @@
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "catalog:dsh",
+    "@deepseek-ai/cordis-plugin-loader": "catalog:dsh",
     "@deepseek-ai/dsh-agent": "catalog:dsh",
     "@deepseek-ai/dsh-session": "catalog:dsh",
     "@deepseek-ai/schemastery": "catalog:dsh",
