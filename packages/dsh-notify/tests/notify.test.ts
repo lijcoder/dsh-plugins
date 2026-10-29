@@ -29,7 +29,12 @@ const flush = (): Promise<void> => new Promise((resolve) => setImmediate(resolve
  * 用真实 Context 而不是手搓替身，是为了让 `inject`、事件分发与 effect 清理都走真实实现
  * ——「插件少声明 inject」这类缺陷在手搓 Context 上是看不见的。
  */
-async function harness(options: { config?: Parameters<typeof testConfig>[0]; title?: string } = {}) {
+async function harness(options: {
+  config?: Parameters<typeof testConfig>[0]
+  title?: string
+  /** 在通知插件挂载**之前**注册的监听器：用来复刻 dsh 宿主的注册顺序。 */
+  beforeNotify?: (ctx: Context) => void
+} = {}) {
   const h = createTestContext()
   const { channel, sent, state } = fakeChannel()
   h.provide('agents', { roots: () => [] })
@@ -42,6 +47,7 @@ async function harness(options: { config?: Parameters<typeof testConfig>[0]; tit
       ctx.im.registerChannel('wecom', channel)
     },
   })
+  options.beforeNotify?.(h.ctx)
   await h.mount(NotifyPlugin, testConfig(options.config))
   return { h, sent, state }
 }
@@ -315,6 +321,33 @@ describe('registerNotify', () => {
     assert.equal(fact(document, '会话'), '帮我把登录超时改大一点')
     assert.equal(fact(document, '工具'), 'bash')
     assert.equal(section(document, '原因'), '这条命令需要你确认')
+    await h.dispose()
+  })
+
+  test('先注册的回答者直接返回决策时通知照发：瀑布链在第一个返回值处就停了', async () => {
+    // 复刻 dsh 宿主的顺序：把 approval/request 转发给浏览器 UI 的那层监听器在启动早期
+    // 就注册了，用户点「允许」后它带着结果返回、不再调 next()。挂在它后面的监听器永远
+    // 不会执行——通知必须抢在链首观战，不能靠挂载顺序碰运气。
+    let asked = 0
+    const { h, sent } = await harness({
+      beforeNotify(ctx) {
+        ctx.on('approval/request', async () => {
+          asked += 1
+          return 'allowed-once' as const
+        })
+      },
+    })
+
+    const outcome = await requestApproval(
+      h.ctx,
+      { agent: { session: topLevel('sess-order') }, toolName: 'bash', reason: '这条命令需要你确认' },
+      async () => 'unavailable',
+    )
+    await flush()
+
+    assert.equal(asked, 1)
+    assert.equal(outcome, 'allowed-once', '回答者仍要拿到决策权')
+    assert.equal(sent.length, 1, '回答者先返回值时通知不能被吞掉')
     await h.dispose()
   })
 

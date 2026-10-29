@@ -80,6 +80,8 @@ dsh 的 [`loader`](https://github.com/deepseek-ai/deepseek-harness/blob/main/ven
 
 后果是任何在 `apply` 里要求「另一个插件已经跑完了」的功能都会 flaky。因此功能只依赖自己 inject 的服务（接缝一定在，它就是 inject 依赖本身），入站从 `ctx.im.onMessage` 订阅；需要外部资源就订阅或惰性解析，不在挂载期解析通道。
 
+waterfall 的监听器顺序就是注册顺序，且链在**第一个返回值的监听器**处结束：`approval/request` 的旁观者必须 `{ prepend: true }`，因为宿主把请求转发给 Web UI 的回答者在启动时就注册了（早于我们的 bundle），用户点完直接带着决策返回、不调 `next()`。理由与现象见 [`dsh-notify`](./packages/dsh-notify)。
+
 ## 插件形态
 
 - 导出 `name` / `inject` / `Config` / `apply`，跟 dsh 主仓库一致。

@@ -29,6 +29,7 @@ export function emitAgentStatus(ctx: Context, agent: unknown, status: 'idle' | '
  * @param ctx - 被测插件所在的 Context。
  * @param request - 授权请求载荷；测试里通常只填被测插件会读的字段。
  * @param decide - 模拟「下游（真正的 UI/策略）如何裁决」；不调用即代表监听器否决。
+ *   注意瀑布链在第一个返回值的监听器处结束——只有前面的监听器都调了 `next()`，`decide` 才会执行。
  * @returns 最外层监听器的返回值，即最终决策。
  */
 export function requestApproval(

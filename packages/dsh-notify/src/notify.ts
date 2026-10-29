@@ -284,6 +284,10 @@ export function registerNotify(ctx: Context, config: Config): void {
     }, styleOf(config)))
   })
 
+  // `prepend` 是必须的，不是优化：瀑布链在**第一个返回值的监听器**处就停了。dsh 宿主
+  // 把请求转发给浏览器 UI 的那层监听器在启动早期注册（还有 auto-review），用户点下
+  // 「允许/拒绝」后它直接带着决策返回、不再调 `next()`，排在它后面的监听器永远不执行。
+  // 通知只是旁观，必须站在链首。
   ctx.on('approval/request', (request, next) => {
     if (config.includeApprovals) {
       const facts = collector.peek(request.agent.session)
@@ -296,7 +300,7 @@ export function registerNotify(ctx: Context, config: Config): void {
       }, styleOf(config)))
     }
     return next()
-  })
+  }, { prepend: true })
 }
 
 /**
